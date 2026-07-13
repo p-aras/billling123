@@ -11,17 +11,17 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
   const [expandedBill, setExpandedBill] = useState(null);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
-  
+
   // Date range filter states
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [dateFilterType, setDateFilterType] = useState('billDate');
-  
+
   // Item/Style filter states
   const [itemSearchTerm, setItemSearchTerm] = useState('');
   const [itemFilterResults, setItemFilterResults] = useState([]);
   const [showItemFilterResults, setShowItemFilterResults] = useState(false);
-  
+
   const [lotSearchTerm, setLotSearchTerm] = useState('');
   const [lotSearchResults, setLotSearchResults] = useState([]);
   const [showLotDetails, setShowLotDetails] = useState(false);
@@ -29,8 +29,8 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
   const [generatingPDF, setGeneratingPDF] = useState(false);
   const [generatingExcel, setGeneratingExcel] = useState(false);
 
-  const SPREADSHEET_ID = '1s8cXaMtG2XSxdOu1Ecve5aLI2MQcbMjVsn6Sih4hItk';
-  const API_KEY = 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk';
+  const SPREADSHEET_ID = process.env.REACT_APP_SPREADSHEET_ID || '1s8cXaMtG2XSxdOu1Ecve5aLI2MQcbMjVsn6Sih4hItk';
+  const API_KEY = process.env.REACT_APP_GOOGLE_API_KEY || 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk';
   const SHEET_NAME = 'Bills';
 
   useEffect(() => {
@@ -42,10 +42,10 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       setLoading(true);
       const range = `${SHEET_NAME}!A:Z`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
-      
+
       const response = await fetch(url);
       const data = await response.json();
-      
+
       if (data.values && data.values.length > 0) {
         const dispatches = transformSheetData(data.values);
         setRecentDispatches(dispatches);
@@ -64,7 +64,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
   const transformSheetData = (sheetValues) => {
     const headers = sheetValues[0];
     const rows = sheetValues.slice(1);
-    
+
     const billNumberIndex = headers.findIndex(h => h === 'Bill Number');
     const partyNameIndex = headers.findIndex(h => h === 'Party Name');
     const billDateIndex = headers.findIndex(h => h === 'Bill Date');
@@ -74,12 +74,12 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
     const statusIndex = headers.findIndex(h => h === 'Status');
     const createdDateIndex = headers.findIndex(h => h === 'Created Date');
     const billDataJsonIndex = headers.findIndex(h => h === 'Bill Data (JSON)' || h === 'BillData' || h === 'billData');
-    
+
     return rows.map((row, index) => {
       let billData = {};
       let items = [];
       let parsedItems = [];
-      
+
       if (billDataJsonIndex !== -1 && row[billDataJsonIndex]) {
         try {
           const jsonStr = row[billDataJsonIndex];
@@ -94,7 +94,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           console.error('Error parsing Bill Data JSON:', e);
         }
       }
-      
+
       if (parsedItems.length === 0 && itemsIndex !== -1 && row[itemsIndex]) {
         try {
           parsedItems = parseItemsFromString(row[itemsIndex]);
@@ -102,7 +102,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           console.error('Error parsing items from string:', e);
         }
       }
-      
+
       if (parsedItems.length === 0) {
         parsedItems = [{
           barcode: row[billNumberIndex] || 'N/A',
@@ -117,12 +117,12 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           sizes: []
         }];
       }
-      
+
       const totalQuantity = parsedItems.reduce((sum, item) => {
         const qty = typeof item.quantity === 'number' ? item.quantity : (parseFloat(item.quantity) || 0);
         return sum + qty;
       }, 0);
-      
+
       const totalSets = parsedItems.reduce((sum, item) => {
         let sets = item.sets;
         if (typeof sets === 'string' && sets.includes('+')) {
@@ -132,16 +132,16 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
         }
         return sum + sets;
       }, 0);
-      
+
       const totalLoosePcs = parsedItems.reduce((sum, item) => {
         const loosePcs = typeof item.loosePcs === 'number' ? item.loosePcs : (parseFloat(item.loosePcs) || 0);
         return sum + loosePcs;
       }, 0);
-      
+
       let billDate = billData.billDate || row[billDateIndex] || '';
       let formattedBillDate = billDate;
       let dueDate = billData.dueDate || (dueDateIndex !== -1 ? row[dueDateIndex] : '');
-      
+
       if (billDate) {
         try {
           const dateObj = new Date(billDate);
@@ -152,7 +152,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           console.error('Error parsing date:', e);
         }
       }
-      
+
       return {
         id: billData.billNumber || row[billNumberIndex] || `dispatch-${index}`,
         orderNo: billData.billNumber || row[billNumberIndex] || '',
@@ -179,7 +179,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
 
   const parseItems = (items) => {
     if (!items || !Array.isArray(items)) return [];
-    
+
     return items.map(item => ({
       barcode: item.barcode || item.Barcode || 'N/A',
       lotNumber: item.lotNumber || item.LotNumber || item.lot || 'N/A',
@@ -218,7 +218,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
     const lowerSearchValue = searchValue.toLowerCase();
 
     recentDispatches.forEach(dispatch => {
-      const matchingItems = dispatch.items.filter(item => 
+      const matchingItems = dispatch.items.filter(item =>
         item.description?.toLowerCase().includes(lowerSearchValue) ||
         item.brand?.toLowerCase().includes(lowerSearchValue) ||
         item.barcode?.toLowerCase().includes(lowerSearchValue)
@@ -264,7 +264,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
     }
 
     setGeneratingExcel(true);
-    
+
     try {
       const excelData = itemFilterResults.map((result, index) => ({
         'S.No': index + 1,
@@ -288,12 +288,12 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       const ws = XLSX.utils.json_to_sheet(excelData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Item Search Results');
-      
+
       const fileName = `Item_Search_${itemSearchTerm}_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
-      
+
       alert(`Excel file generated successfully! Found ${itemFilterResults.length} item(s) matching "${itemSearchTerm}"`);
-      
+
     } catch (error) {
       console.error("Excel Export Error:", error);
       alert("Failed to generate Excel file: " + error.message);
@@ -305,17 +305,17 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
   // Export all filtered dispatches to Excel
   const exportAllToExcel = () => {
     const filteredData = getFilteredDispatches();
-    
+
     if (filteredData.length === 0) {
       alert('No data available to export.');
       return;
     }
 
     setGeneratingExcel(true);
-    
+
     try {
       const excelData = [];
-      
+
       filteredData.forEach(dispatch => {
         dispatch.items.forEach((item, idx) => {
           excelData.push({
@@ -341,15 +341,15 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           });
         });
       });
-      
+
       const ws = XLSX.utils.json_to_sheet(excelData);
       const wb = XLSX.utils.book_new();
       XLSX.utils.book_append_sheet(wb, ws, 'Dispatch Data');
-      
+
       let fileName = `Dispatch_Export_${new Date().toISOString().split('T')[0]}.xlsx`;
       XLSX.writeFile(wb, fileName);
       alert(`Excel file generated successfully! Exported ${excelData.length} items from ${filteredData.length} bills.`);
-      
+
     } catch (error) {
       console.error("Excel Export Error:", error);
       alert("Failed to generate Excel file: " + error.message);
@@ -366,7 +366,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
     }
 
     setGeneratingPDF(true);
-    
+
     try {
       const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -385,7 +385,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       doc.setFontSize(18);
       doc.text("Lot Tracking Report", pageWidth / 2, yPos, { align: "center" });
       yPos += 8;
-      
+
       doc.setFontSize(12);
       doc.setTextColor(70, 70, 200);
       doc.text(`Lot Number: ${lotNumber}`, pageWidth / 2, yPos, { align: "center" });
@@ -396,40 +396,40 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       const totalSets = searchResults.reduce((sum, r) => sum + r.totalSets, 0);
       const totalLoosePcs = searchResults.reduce((sum, r) => sum + r.totalLoosePcs, 0);
       const totalQuantity = searchResults.reduce((sum, r) => sum + r.totalQuantity, 0);
-      
+
       const boxHeight = 30;
       doc.rect(leftMargin, yPos, contentWidth, boxHeight);
       doc.setFillColor(245, 245, 245);
       doc.rect(leftMargin, yPos, contentWidth, 8, 'F');
-      
+
       doc.setFont("times", "bold");
       doc.setFontSize(10);
       doc.text("SUMMARY", leftMargin + 5, yPos + 6);
-      
+
       doc.setFontSize(8);
       const summaryY = yPos + 14;
       const colWidth = contentWidth / 3;
-      
+
       doc.setFont("times", "normal");
       doc.text("Total Dispatches:", leftMargin + 5, summaryY);
       doc.setFont("times", "bold");
       doc.text(totalDispatches.toString(), leftMargin + 40, summaryY);
-      
+
       doc.setFont("times", "normal");
       doc.text("Total Sets:", leftMargin + colWidth + 5, summaryY);
       doc.setFont("times", "bold");
       doc.text(totalSets.toString(), leftMargin + colWidth + 35, summaryY);
-      
+
       doc.setFont("times", "normal");
       doc.text("Total Loose Pcs:", leftMargin + (colWidth * 2) + 5, summaryY);
       doc.setFont("times", "bold");
       doc.text(totalLoosePcs.toString(), leftMargin + (colWidth * 2) + 40, summaryY);
-      
+
       doc.setFont("times", "normal");
       doc.text("Total Quantity:", leftMargin + 5, summaryY + 8);
       doc.setFont("times", "bold");
       doc.text(totalQuantity.toString(), leftMargin + 40, summaryY + 8);
-      
+
       yPos += boxHeight + 8;
 
       const tableColumns = [
@@ -448,7 +448,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       doc.setFillColor(240, 240, 240);
       doc.rect(leftMargin, yPos, contentWidth, 8, 'F');
       doc.rect(leftMargin, yPos, contentWidth, 8);
-      
+
       let currentX = leftMargin;
       tableColumns.forEach(col => {
         const textWidth = doc.getTextWidth(col.header);
@@ -459,18 +459,18 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           doc.line(currentX, yPos, currentX, yPos + 8);
         }
       });
-      
+
       yPos += 8;
 
       let itemsProcessed = 0;
       const colWidths = [10, 30, 50, 25, 20, 15, 15, 20];
-      
+
       while (itemsProcessed < searchResults.length) {
         const result = searchResults[itemsProcessed];
         const rowHeight = 8;
-        
+
         doc.rect(leftMargin, yPos, contentWidth, rowHeight);
-        
+
         let colX = leftMargin;
         colWidths.forEach(width => {
           colX += width;
@@ -494,7 +494,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
         values.forEach((value, colIndex) => {
           const textWidth = doc.getTextWidth(value);
           const textXPos = textX + (colWidths[colIndex] / 2) - (textWidth / 2);
-          
+
           if (colIndex === 4 || colIndex === 7) {
             doc.setFont("times", "bold");
             doc.setFontSize(9);
@@ -503,38 +503,38 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
             doc.setFontSize(8);
           }
           doc.text(value, textXPos, yPos + 5.5);
-          
+
           textX += colWidths[colIndex];
         });
 
         yPos += rowHeight;
         itemsProcessed++;
-        
+
         if (yPos > pageHeight - 55 && itemsProcessed < searchResults.length) {
           doc.addPage();
           yPos = 15;
-          
+
           doc.setLineWidth(0.5);
           doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
           doc.setLineWidth(0.3);
-          
+
           doc.setFont("times", "bold");
           doc.setFontSize(18);
           doc.text("Lot Tracking Report", pageWidth / 2, yPos, { align: "center" });
           yPos += 8;
-          
+
           doc.setFontSize(12);
           doc.setTextColor(70, 70, 200);
           doc.text(`Lot Number: ${lotNumber} (Continued)`, pageWidth / 2, yPos, { align: "center" });
           doc.setTextColor(0, 0, 0);
           yPos += 10;
-          
+
           doc.setFont("times", "bold");
           doc.setFontSize(9);
           doc.setFillColor(240, 240, 240);
           doc.rect(leftMargin, yPos, contentWidth, 8, 'F');
           doc.rect(leftMargin, yPos, contentWidth, 8);
-          
+
           currentX = leftMargin;
           tableColumns.forEach(col => {
             const textWidth = doc.getTextWidth(col.header);
@@ -545,18 +545,18 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
               doc.line(currentX, yPos, currentX, yPos + 8);
             }
           });
-          
+
           yPos += 8;
         }
       }
-      
+
       if (searchResults.length > 0) {
         const totalRowHeight = 8;
-        
+
         doc.setFillColor(245, 245, 245);
         doc.rect(leftMargin, yPos, contentWidth, totalRowHeight, 'F');
         doc.rect(leftMargin, yPos, contentWidth, totalRowHeight);
-        
+
         let colX = leftMargin;
         colWidths.forEach(width => {
           colX += width;
@@ -564,7 +564,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
             doc.line(colX, yPos, colX, yPos + totalRowHeight);
           }
         });
-        
+
         const totalValues = [
           "",
           "TOTAL",
@@ -575,60 +575,60 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           totalLoosePcs.toString(),
           totalQuantity.toString()
         ];
-        
+
         let textX = leftMargin;
         totalValues.forEach((value, colIndex) => {
           const textWidth = doc.getTextWidth(value);
           const textXPos = textX + (colWidths[colIndex] / 2) - (textWidth / 2);
-          
+
           doc.setFont("times", "bold");
           doc.setFontSize(10);
           doc.text(value, textXPos, yPos + 5.5);
-          
+
           textX += colWidths[colIndex];
         });
-        
+
         yPos += totalRowHeight;
       }
-      
+
       yPos += 3;
       doc.setLineWidth(0.5);
       doc.line(leftMargin, yPos, leftMargin + contentWidth, yPos);
-      
+
       const footerY = pageHeight - 22;
       doc.setFont("times", "bold");
       doc.setFontSize(9);
       doc.setLineWidth(0.3);
-      
+
       const sectionWidth = (contentWidth - 20) / 4;
       let sigX = leftMargin;
-      
+
       doc.text("Prepared By", sigX + 5, footerY);
       doc.line(sigX + 5, footerY + 3, sigX + sectionWidth - 5, footerY + 3);
       doc.setFontSize(8);
       doc.text("System", sigX + 5, footerY + 8);
-      
+
       sigX += sectionWidth;
       doc.setFontSize(9);
       doc.text("Verified By", sigX + 5, footerY);
       doc.line(sigX + 5, footerY + 3, sigX + sectionWidth - 5, footerY + 3);
       doc.setFontSize(8);
       doc.text("(Name & Signature)", sigX + 5, footerY + 8);
-      
+
       sigX += sectionWidth;
       doc.setFontSize(9);
       doc.text("Checked By", sigX + 5, footerY);
       doc.line(sigX + 5, footerY + 3, sigX + sectionWidth - 5, footerY + 3);
       doc.setFontSize(8);
       doc.text("(Name & Signature)", sigX + 5, footerY + 8);
-      
+
       sigX += sectionWidth;
       doc.setFontSize(9);
       doc.text("Authorized Signatory", sigX + 5, footerY);
       doc.line(sigX + 5, footerY + 3, pageWidth - rightMargin - 5, footerY + 3);
       doc.setFontSize(8);
       doc.text("(Name & Signature)", sigX + 5, footerY + 8);
-      
+
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
@@ -645,9 +645,9 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
 
       const fileName = `Lot_Tracking_${lotNumber}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
-      
+
       alert(`Lot tracking PDF generated successfully for ${lotNumber}!`);
-      
+
     } catch (error) {
       console.error("PDF Generation Error:", error);
       alert("Failed to generate PDF: " + error.message);
@@ -659,7 +659,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
   // Generate Individual Packing List PDF
   const generateBillPDF = async (dispatch) => {
     setGeneratingPDF(true);
-    
+
     try {
       const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' });
       const pageWidth = doc.internal.pageSize.getWidth();
@@ -671,10 +671,10 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       const uniqueLots = new Set(dispatch.items.map(item => item.lotNumber)).size;
       const totalItems = dispatch.items.length;
       const totalQuantity = dispatch.totalQuantity;
-      
+
       let totalSets = 0;
       let totalLoose = 0;
-      
+
       dispatch.items.forEach(item => {
         let sets = item.sets;
         if (sets) {
@@ -698,7 +698,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       doc.setFontSize(16);
       doc.text("Packing List", pageWidth / 2, yPos, { align: "center" });
       yPos += 6.5;
-      
+
       doc.setFontSize(12);
       doc.setTextColor(0, 0, 0);
       doc.text("PACKING LIST FOR ACCOUNT OFFICE", pageWidth / 2, yPos, { align: "center" });
@@ -708,7 +708,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       const partyName = dispatch.partyName || 'N/A';
       doc.setFont("times", "bold");
       doc.setFontSize(18);
-      
+
       if (doc.getTextWidth(partyName) > contentWidth) {
         let remainingName = partyName;
         let lines = [];
@@ -734,44 +734,44 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
         doc.text(partyName, pageWidth / 2, yPos, { align: "center" });
         yPos += 6;
       }
-      
+
       const boxHeight = 42;
       doc.rect(leftMargin, yPos, contentWidth, boxHeight);
-      
+
       const midPoint = leftMargin + (contentWidth / 2);
       doc.line(midPoint, yPos, midPoint, yPos + boxHeight);
 
       const leftLabelX = leftMargin + 5;
       const leftValueX = leftMargin + 40;
-      
+
       doc.setFont("times", "bold");
       doc.setFontSize(9);
-      
+
       doc.text("Date", leftLabelX, yPos + 7);
       doc.text(":", leftLabelX + 18, yPos + 7);
       doc.setFont("times", "normal");
       doc.text(dispatch.billDate || new Date().toLocaleDateString(), leftValueX, yPos + 7);
-      
+
       doc.setFont("times", "bold");
       doc.text("Order Ref", leftLabelX, yPos + 14);
       doc.text(":", leftLabelX + 18, yPos + 14);
       doc.setFont("times", "normal");
       const orderRef = (dispatch.orderReference || 'N/A').substring(0, 25);
       doc.text(orderRef, leftValueX, yPos + 14);
-      
+
       doc.setFont("times", "bold");
       doc.text("Doc No", leftLabelX, yPos + 21);
       doc.text(":", leftLabelX + 18, yPos + 21);
       doc.setFont("times", "normal");
       doc.text(dispatch.orderNo || 'N/A', leftValueX, yPos + 21);
-      
+
       doc.setFont("times", "bold");
       doc.text("Generated By", leftLabelX, yPos + 28);
       doc.text(":", leftLabelX + 18, yPos + 28);
       doc.setFont("times", "normal");
       const preparedByText = `${dispatch.preparedBy || 'System'} (${dispatch.preparedByRole || 'User'})`;
       doc.text(preparedByText.substring(0, 25), leftValueX, yPos + 28);
-      
+
       doc.setFont("times", "bold");
       doc.text("Packing Materials", leftLabelX, yPos + 35);
       doc.text(":", leftLabelX + 18, yPos + 35);
@@ -786,33 +786,33 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
 
       const rightLabelX = midPoint + 5;
       const rightValueX = midPoint + 38;
-      
+
       doc.setFont("times", "bold");
       doc.setFontSize(9);
-      
+
       doc.text("Total Lots", rightLabelX, yPos + 7);
       doc.text(":", rightLabelX + 18, yPos + 7);
       doc.setFont("times", "normal");
       doc.text(uniqueLots.toString(), rightValueX, yPos + 7);
-      
+
       doc.setFont("times", "bold");
       doc.text("Total Items", rightLabelX, yPos + 14);
       doc.text(":", rightLabelX + 18, yPos + 14);
       doc.setFont("times", "normal");
       doc.text(totalItems.toString(), rightValueX, yPos + 14);
-      
+
       doc.setFont("times", "bold");
       doc.text("Total Qty", rightLabelX, yPos + 21);
       doc.text(":", rightLabelX + 18, yPos + 21);
       doc.setFont("times", "normal");
       doc.text(`${totalQuantity} PCS`, rightValueX, yPos + 21);
-      
+
       doc.setFont("times", "bold");
       doc.text("Total Sets", rightLabelX, yPos + 28);
       doc.text(":", rightLabelX + 18, yPos + 28);
       doc.setFont("times", "normal");
       doc.text(totalSets.toString(), rightValueX, yPos + 28);
-      
+
       doc.setFont("times", "bold");
       doc.text("Document Type", rightLabelX, yPos + 35);
       doc.text(":", rightLabelX + 18, yPos + 35);
@@ -840,7 +840,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       doc.setFillColor(240, 240, 240);
       doc.rect(leftMargin, yPos, contentWidth, 8, 'F');
       doc.rect(leftMargin, yPos, contentWidth, 8);
-      
+
       let currentX = leftMargin;
       tableColumns.forEach(col => {
         const textWidth = doc.getTextWidth(col.header);
@@ -851,16 +851,16 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           doc.line(currentX, yPos, currentX, yPos + 8);
         }
       });
-      
+
       yPos += 8;
 
       let itemsProcessed = 0;
       while (itemsProcessed < dispatch.items.length) {
         const item = dispatch.items[itemsProcessed];
         const rowHeight = 8;
-        
+
         doc.rect(leftMargin, yPos, contentWidth, rowHeight);
-        
+
         let colX = leftMargin;
         const colWidths = [10, 22, 26, 55, 15, 15, 10, 15, 20];
         colWidths.forEach(width => {
@@ -879,7 +879,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
         let opSymbol = "";
         const loosePcsValue = Number(item.loosePcs) || 0;
         const operation = item.looseOperation || "add";
-        
+
         if (loosePcsValue > 0) {
           opSymbol = operation === "subtract" ? "-" : "+";
         } else {
@@ -899,12 +899,12 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
         ];
 
         const boldColumns = [1, 5, 8];
-        
+
         let textX = leftMargin;
         values.forEach((value, colIndex) => {
           const textWidth = doc.getTextWidth(value);
           const textXPos = textX + (colWidths[colIndex] / 2) - (textWidth / 2);
-          
+
           if (boldColumns.includes(colIndex)) {
             doc.setFont("times", "bold");
             doc.setFontSize(10);
@@ -913,47 +913,47 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
             doc.setFontSize(9);
           }
           doc.text(value, textXPos, yPos + 5.5);
-          
+
           textX += colWidths[colIndex];
         });
 
         yPos += rowHeight;
         itemsProcessed++;
-        
+
         if (yPos > pageHeight - 55 && itemsProcessed < dispatch.items.length) {
           doc.addPage();
           yPos = 15;
-          
+
           doc.setLineWidth(0.5);
           doc.rect(5, 5, pageWidth - 10, pageHeight - 10);
           doc.setLineWidth(0.3);
-          
+
           doc.setFont("times", "bold");
           doc.setFontSize(22);
           doc.text("Packing List", pageWidth / 2, yPos, { align: "center" });
           yPos += 10;
-          
+
           doc.setFontSize(14);
           doc.setTextColor(0, 0, 0);
           doc.text("PACKING LIST FOR ACCOUNT OFFICE", pageWidth / 2, yPos, { align: "center" });
           doc.setTextColor(0, 0, 0);
           yPos += 8;
-          
+
           doc.setFont("times", "bold");
           doc.setFontSize(13);
           doc.text(partyName, pageWidth / 2, yPos, { align: "center" });
           yPos += 6;
-          
+
           doc.rect(leftMargin, yPos, contentWidth, boxHeight);
           doc.line(midPoint, yPos, midPoint, yPos + boxHeight);
           yPos += boxHeight + 6;
-          
+
           doc.setFont("times", "bold");
           doc.setFontSize(9);
           doc.setFillColor(240, 240, 240);
           doc.rect(leftMargin, yPos, contentWidth, 8, 'F');
           doc.rect(leftMargin, yPos, contentWidth, 8);
-          
+
           currentX = leftMargin;
           tableColumns.forEach(col => {
             const textWidth = doc.getTextWidth(col.header);
@@ -964,18 +964,18 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
               doc.line(currentX, yPos, currentX, yPos + 8);
             }
           });
-          
+
           yPos += 8;
         }
       }
-      
+
       if (dispatch.items.length > 0) {
         const totalRowHeight = 8;
-        
+
         doc.setFillColor(245, 245, 245);
         doc.rect(leftMargin, yPos, contentWidth, totalRowHeight, 'F');
         doc.rect(leftMargin, yPos, contentWidth, totalRowHeight);
-        
+
         let colX = leftMargin;
         const colWidths = [10, 22, 26, 55, 15, 15, 10, 15, 20];
         colWidths.forEach(width => {
@@ -984,7 +984,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
             doc.line(colX, yPos, colX, yPos + totalRowHeight);
           }
         });
-        
+
         const totalValues = [
           "",
           "TOTAL",
@@ -996,61 +996,61 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           totalLoose.toString(),
           totalQuantity.toString()
         ];
-        
+
         let textX = leftMargin;
         totalValues.forEach((value, colIndex) => {
           const textWidth = doc.getTextWidth(value);
           const textXPos = textX + (colWidths[colIndex] / 2) - (textWidth / 2);
-          
+
           doc.setFont("times", "bold");
           doc.setFontSize(10);
           doc.text(value, textXPos, yPos + 5.5);
-          
+
           textX += colWidths[colIndex];
         });
-        
+
         yPos += totalRowHeight;
       }
-      
+
       yPos += 3;
       doc.setLineWidth(0.5);
       doc.line(leftMargin, yPos, leftMargin + contentWidth, yPos);
-      
+
       const footerY = pageHeight - 22;
       doc.setFont("times", "bold");
       doc.setFontSize(9);
       doc.setLineWidth(0.3);
-      
+
       const sectionWidth = (contentWidth - 20) / 4;
       let sigX = leftMargin;
-      
+
       doc.text("Prepared By", sigX + 5, footerY);
       doc.line(sigX + 5, footerY + 3, sigX + sectionWidth - 5, footerY + 3);
       doc.setFontSize(8);
       const preparedText = `${dispatch.preparedBy || 'System'} (${dispatch.preparedByRole || 'User'})`;
       doc.text(preparedText.substring(0, 18), sigX + 5, footerY + 8);
-      
+
       sigX += sectionWidth;
       doc.setFontSize(9);
       doc.text("Account Officer", sigX + 5, footerY);
       doc.line(sigX + 5, footerY + 3, sigX + sectionWidth - 5, footerY + 3);
       doc.setFontSize(8);
       doc.text("(Name & Signature)", sigX + 5, footerY + 8);
-      
+
       sigX += sectionWidth;
       doc.setFontSize(9);
       doc.text("Checked By", sigX + 5, footerY);
       doc.line(sigX + 5, footerY + 3, sigX + sectionWidth - 5, footerY + 3);
       doc.setFontSize(8);
       doc.text("(Name & Signature)", sigX + 5, footerY + 8);
-      
+
       sigX += sectionWidth;
       doc.setFontSize(9);
       doc.text("Authorized Signatory", sigX + 5, footerY);
       doc.line(sigX + 5, footerY + 3, pageWidth - rightMargin - 5, footerY + 3);
       doc.setFontSize(8);
       doc.text("(Name & Signature)", sigX + 5, footerY + 8);
-      
+
       const totalPages = doc.internal.getNumberOfPages();
       for (let i = 1; i <= totalPages; i++) {
         doc.setPage(i);
@@ -1071,9 +1071,9 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
 
       const fileName = `PackingList_${dispatch.orderNo}_${safePartyName}_${new Date().toISOString().split('T')[0]}.pdf`;
       doc.save(fileName);
-      
+
       alert(`PDF generated successfully for ${dispatch.orderNo}!`);
-      
+
     } catch (error) {
       console.error("PDF Generation Error:", error);
       alert("Failed to generate PDF: " + error.message);
@@ -1085,7 +1085,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
   // Generate Sales Register PDF (Tally format)
   const generateSalesRegisterPDF = () => {
     const filteredData = getFilteredDispatches();
-    
+
     if (filteredData.length === 0) {
       alert('No data available for the selected date range to generate PDF.');
       return;
@@ -1093,21 +1093,21 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
 
     const doc = new jsPDF('p', 'mm', 'a4');
     const pageWidth = doc.internal.pageSize.getWidth();
-    
+
     doc.setTextColor(0, 0, 0);
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(14);
     doc.text('Estimate Mh', pageWidth / 2, 15, { align: 'center' });
-    
+
     doc.setFontSize(10);
     doc.text('State Name : , Code :', pageWidth / 2, 20, { align: 'center' });
-    
+
     doc.setFontSize(12);
     doc.text('Sales Register', pageWidth / 2, 28, { align: 'center' });
-    
+
     doc.setFont('helvetica', 'normal');
     doc.setFontSize(10);
-    let dateText = startDate 
+    let dateText = startDate
       ? `For ${new Date(startDate).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: '2-digit' })}`
       : 'All Time';
     doc.text(dateText, pageWidth / 2, 34, { align: 'center' });
@@ -1117,7 +1117,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
       if (dispatch.orderReference && dispatch.orderReference !== '-') {
         particulars += ` ( ${dispatch.orderReference} )`;
       }
-      
+
       return [
         dispatch.billDate || '-',
         particulars.toUpperCase(),
@@ -1189,7 +1189,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
     const lowerLotNumber = lotNumber.toLowerCase();
 
     recentDispatches.forEach(dispatch => {
-      const matchingItems = dispatch.items.filter(item => 
+      const matchingItems = dispatch.items.filter(item =>
         item.lotNumber?.toLowerCase().includes(lowerLotNumber)
       );
 
@@ -1215,7 +1215,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
 
     setLotSearchResults(results);
     setShowLotDetails(results.length > 0);
-    
+
     if (results.length > 0 && results[0].items.length > 0) {
       setSelectedLot(results[0].items[0].lotNumber);
     }
@@ -1239,7 +1239,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           d.id === dispatchId ? { ...d, status: newStatus } : d
         )
       );
-      
+
       if (updateDispatchStatus) {
         updateDispatchStatus(dispatchId, newStatus);
       }
@@ -1250,14 +1250,14 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
   };
 
   const getStatusConfig = (status) => {
-    switch(status?.toLowerCase()) {
-      case 'completed': 
+    switch (status?.toLowerCase()) {
+      case 'completed':
         return { color: '#059669', bg: '#d1fae5', icon: '✓', label: 'Completed' };
-      case 'active': 
+      case 'active':
         return { color: '#2563eb', bg: '#dbeafe', icon: '🚚', label: 'Active' };
-      case 'pending': 
+      case 'pending':
         return { color: '#d97706', bg: '#fef3c7', icon: '⏰', label: 'Pending' };
-      default: 
+      default:
         return { color: '#6b7280', bg: '#f3f4f6', icon: '📋', label: status || 'Unknown' };
     }
   };
@@ -1265,10 +1265,10 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
   const getFilteredDispatches = () => {
     return recentDispatches.filter(dispatch => {
       const matchesSearch = dispatch.orderNo?.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                           dispatch.partyName?.toLowerCase().includes(searchTerm.toLowerCase());
-      
+        dispatch.partyName?.toLowerCase().includes(searchTerm.toLowerCase());
+
       const matchesStatus = statusFilter === 'all' || dispatch.status?.toLowerCase() === statusFilter;
-      
+
       let matchesDateRange = true;
       if (startDate || endDate) {
         const dateToCompare = dateFilterType === 'billDate' ? dispatch.billDate : dispatch.dueDate;
@@ -1287,7 +1287,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
           matchesDateRange = false;
         }
       }
-      
+
       return matchesSearch && matchesStatus && matchesDateRange;
     });
   };
@@ -1348,26 +1348,26 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
     <div className="dispatch-modern-container">
       <div className="dispatch-modern-wrapper">
         {/* Header Section */}
-     {/* Header Section */}
-<div className="dispatch-modern-header">
-  <div className="dispatch-modern-header-left">
-    <button 
-      onClick={() => window.history.back()} 
-      className="dispatch-modern-back-btn"
-      title="Go Back"
-    >
-      <span className="dispatch-modern-back-icon">←</span>
-      <span>Back</span>
-    </button>
-    <div className="dispatch-modern-title-section">
-      <div className="dispatch-modern-title-icon">📦</div>
-      <div>
-        <h1 className="dispatch-modern-title">Dispatch Management</h1>
-        <p className="dispatch-modern-subtitle">Track and manage all your dispatches in one place</p>
-      </div>
-    </div>
-  </div>
-</div>
+        {/* Header Section */}
+        <div className="dispatch-modern-header">
+          <div className="dispatch-modern-header-left">
+            <button
+              onClick={() => window.history.back()}
+              className="dispatch-modern-back-btn"
+              title="Go Back"
+            >
+              <span className="dispatch-modern-back-icon">←</span>
+              <span>Back</span>
+            </button>
+            <div className="dispatch-modern-title-section">
+              <div className="dispatch-modern-title-icon">📦</div>
+              <div>
+                <h1 className="dispatch-modern-title">Dispatch Management</h1>
+                <p className="dispatch-modern-subtitle">Track and manage all your dispatches in one place</p>
+              </div>
+            </div>
+          </div>
+        </div>
 
         {/* Stats Dashboard */}
         <div className="dispatch-modern-stats-grid">
@@ -1448,13 +1448,13 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
             <h3>Date Range Filter</h3>
             <span className="dispatch-modern-filter-badge">Filter bills by date</span>
           </div>
-          
+
           <div className="dispatch-modern-date-range-container">
             <div className="dispatch-modern-date-range-controls">
               <div className="dispatch-modern-date-input-group">
                 <label>Filter By:</label>
-                <select 
-                  value={dateFilterType} 
+                <select
+                  value={dateFilterType}
                   onChange={(e) => setDateFilterType(e.target.value)}
                   className="dispatch-modern-filter-select"
                 >
@@ -1462,7 +1462,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                   <option value="dueDate">Due Date</option>
                 </select>
               </div>
-              
+
               <div className="dispatch-modern-date-input-group">
                 <label>From Date:</label>
                 <input
@@ -1472,7 +1472,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                   className="dispatch-modern-date-input"
                 />
               </div>
-              
+
               <div className="dispatch-modern-date-input-group">
                 <label>To Date:</label>
                 <input
@@ -1482,9 +1482,9 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                   className="dispatch-modern-date-input"
                 />
               </div>
-              
+
               <div className="dispatch-modern-date-actions">
-                <button 
+                <button
                   onClick={() => {
                     setStartDate('');
                     setEndDate('');
@@ -1495,18 +1495,18 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                 </button>
               </div>
             </div>
-            
+
             {/* PDF Download Buttons - Sales Register */}
             {(startDate || endDate) && filteredDispatches.length > 0 && (
               <div className="dispatch-modern-pdf-actions">
-                <button 
+                <button
                   onClick={generateSalesRegisterPDF}
                   className="dispatch-modern-pdf-btn dispatch-modern-pdf-register"
                 >
                   <span>📊</span>
                   Download Sales Register
                 </button>
-                <button 
+                <button
                   onClick={exportAllToExcel}
                   disabled={generatingExcel}
                   className="dispatch-modern-excel-btn"
@@ -1540,7 +1540,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
             </div>
             <p className="dispatch-modern-section-desc">Search for specific items across all dispatches (e.g., tracksuit, shirt, jeans, etc.)</p>
           </div>
-          
+
           <div className="dispatch-modern-item-search-container">
             <div className="dispatch-modern-search-wrapper">
               <span className="dispatch-modern-search-icon">🔍</span>
@@ -1561,14 +1561,14 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                 </button>
               )}
             </div>
-            
+
             {itemSearchTerm && showItemFilterResults && (
               <div className="dispatch-modern-item-results-header">
                 <div className="dispatch-modern-item-summary">
                   <span className="dispatch-modern-found-count">
                     📋 Found {itemFilterResults.length} item(s) matching "{itemSearchTerm}"
                   </span>
-                  <button 
+                  <button
                     onClick={exportItemFilterToExcel}
                     disabled={generatingExcel}
                     className="dispatch-modern-excel-export-btn"
@@ -1612,7 +1612,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                         {result.status}
                       </span>
                     </div>
-                    
+
                     <div className="dispatch-modern-item-details">
                       <div className="dispatch-modern-item-property">
                         <label>Item Description:</label>
@@ -1663,7 +1663,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                         </div>
                       )}
                     </div>
-                    
+
                     <div className="dispatch-modern-item-actions">
                       <button
                         onClick={() => {
@@ -1709,7 +1709,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
               </div>
             </div>
           )}
-          
+
           {showItemFilterResults && itemFilterResults.length === 0 && itemSearchTerm && (
             <div className="dispatch-modern-no-results">
               <span>🔍</span>
@@ -1728,7 +1728,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
             </div>
             <p className="dispatch-modern-section-desc">Search and track lots across all dispatches</p>
           </div>
-          
+
           <div className="dispatch-modern-search-wrapper">
             <span className="dispatch-modern-search-icon">🔍</span>
             <input
@@ -1757,7 +1757,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                     <div className="dispatch-modern-summary-header">
                       <span className="dispatch-modern-found-count">📋 {lotSearchResults.length} Dispatch(es) Found</span>
                       <span className="dispatch-modern-lot-highlight">Lot: {lotSearchTerm}</span>
-                      <button 
+                      <button
                         onClick={() => generateLotSearchPDF(lotSearchTerm, lotSearchResults)}
                         disabled={generatingPDF}
                         className="dispatch-modern-pdf-download-btn"
@@ -1830,7 +1830,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                           </button>
                         </div>
                       </div>
-                      
+
                       <div className="dispatch-modern-lot-table-wrapper">
                         <table className="dispatch-modern-lot-table">
                           <thead>
@@ -1892,12 +1892,12 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
               className="dispatch-modern-filter-input"
             />
           </div>
-          
+
           <div className="dispatch-modern-status-filters">
             {['all', 'pending', 'active', 'completed'].map(status => {
-              const icon = status === 'all' ? '📊' : 
-                          status === 'pending' ? '⏰' : 
-                          status === 'active' ? '🚚' : '✓';
+              const icon = status === 'all' ? '📊' :
+                status === 'pending' ? '⏰' :
+                  status === 'active' ? '🚚' : '✓';
               return (
                 <button
                   key={status}
@@ -1915,9 +1915,9 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
               );
             })}
           </div>
-          
+
           {/* Export All Button */}
-          <button 
+          <button
             onClick={exportAllToExcel}
             disabled={generatingExcel}
             className="dispatch-modern-export-all-btn"
@@ -1946,7 +1946,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
             <span className="dispatch-modern-active-filters-label">Active Filters:</span>
             {(startDate || endDate) && (
               <span className="dispatch-modern-filter-tag">
-                📅 {dateFilterType === 'billDate' ? 'Bill Date' : 'Due Date'}: 
+                📅 {dateFilterType === 'billDate' ? 'Bill Date' : 'Due Date'}:
                 {startDate && ` ${new Date(startDate).toLocaleDateString()}`}
                 {endDate && ` - ${new Date(endDate).toLocaleDateString()}`}
                 <button onClick={() => { setStartDate(''); setEndDate(''); }} className="dispatch-modern-remove-filter">×</button>
@@ -1974,7 +1974,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                 }} className="dispatch-modern-remove-filter">×</button>
               </span>
             )}
-            <button 
+            <button
               onClick={clearAllFilters}
               className="dispatch-modern-clear-all-filters"
             >
@@ -2017,7 +2017,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                 filteredDispatches.map(dispatch => {
                   const statusConfig = getStatusConfig(dispatch.status);
                   const isExpanded = expandedBill === dispatch.id;
-                  
+
                   return (
                     <React.Fragment key={dispatch.id}>
                       <tr className={`dispatch-modern-row ${isExpanded ? 'dispatch-modern-row-expanded' : ''}`}>
@@ -2047,7 +2047,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                         </td>
                         <td>
                           <div className="dispatch-modern-actions">
-                            <button 
+                            <button
                               className="dispatch-modern-pdf-generate-btn"
                               onClick={() => generateBillPDF(dispatch)}
                               disabled={generatingPDF}
@@ -2074,7 +2074,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                           </div>
                         </td>
                         <td>
-                          <button 
+                          <button
                             className="dispatch-modern-expand-btn"
                             onClick={() => setExpandedBill(isExpanded ? null : dispatch.id)}
                           >
@@ -2082,14 +2082,14 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                           </button>
                         </td>
                       </tr>
-                      
+
                       {isExpanded && (
                         <tr className="dispatch-modern-details-row">
                           <td colSpan="11">
                             <div className="dispatch-modern-details-content">
                               <div className="dispatch-modern-details-header">
                                 <h4>📋 Bill Details</h4>
-                                <button 
+                                <button
                                   className="dispatch-modern-details-action"
                                   onClick={() => generateBillPDF(dispatch)}
                                   disabled={generatingPDF}
@@ -2110,7 +2110,7 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                                   Generate Packing List
                                 </button>
                               </div>
-                              
+
                               <div className="dispatch-modern-details-grid">
                                 <div className="dispatch-modern-detail-item">
                                   <label>Bill Number</label>
@@ -2239,11 +2239,11 @@ function ManagementDispatchDetail({ updateDispatchStatus, onBack }) {
                     <span>📦</span>
                     <h3>No dispatches found</h3>
                     <p>
-                      {(startDate || endDate) 
-                        ? `No bills found for the selected date range` 
-                        : searchTerm 
-                        ? `No results matching "${searchTerm}"` 
-                        : "Create your first packing copy to get started!"}
+                      {(startDate || endDate)
+                        ? `No bills found for the selected date range`
+                        : searchTerm
+                          ? `No results matching "${searchTerm}"`
+                          : "Create your first packing copy to get started!"}
                     </p>
                     {(startDate || endDate) && (
                       <button onClick={() => { setStartDate(''); setEndDate(''); }} className="dispatch-modern-btn-primary">

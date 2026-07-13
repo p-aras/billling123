@@ -13,12 +13,12 @@ function Login({ onLogin }) {
   const [showPassword, setShowPassword] = useState(false);
   const [users, setUsers] = useState([]);
   const [fetchingUsers, setFetchingUsers] = useState(true);
-  
+
   const navigate = useNavigate(); // Add this for React Router navigation
 
   // Google Sheets Configuration
-  const SPREADSHEET_ID = '1iBDfsxA9XEC9nhQE-ALBYlyGRZWOaCYvWsnGfYYbr1I';
-  const API_KEY = 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk';
+  const SPREADSHEET_ID = process.env.REACT_APP_LOGIN_SHEET_ID || '1iBDfsxA9XEC9nhQE-ALBYlyGRZWOaCYvWsnGfYYbr1I';
+  const API_KEY = process.env.REACT_APP_GOOGLE_API_KEY || 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk';
   const SHEET_NAME = 'DispatchCredentials'; // Sheet containing username, password and position
 
   // Fetch users from Google Sheets
@@ -30,7 +30,7 @@ function Login({ onLogin }) {
     // First check position field from sheet
     if (position && position.trim()) {
       const lowerPosition = position.toLowerCase().trim();
-      
+
       if (lowerPosition === 'administrator' || lowerPosition === 'admin') {
         return 'Administrator';
       } else if (lowerPosition === 'manager') {
@@ -41,14 +41,14 @@ function Login({ onLogin }) {
         return 'Team Member';
       }
     }
-    
+
     // Fallback to username-based role detection if position is not specified
     const adminKeywords = ['admin', 'manager', 'director', 'owner', 'goyal'];
     const supervisorKeywords = ['supervisor', 'super', 'lead'];
     const teamKeywords = ['team', 'member', 'employee', 'staff', 'operator', 'paras'];
-    
+
     const lowerUsername = username.toLowerCase();
-    
+
     if (adminKeywords.some(keyword => lowerUsername.includes(keyword))) {
       return 'Administrator';
     } else if (supervisorKeywords.some(keyword => lowerUsername.includes(keyword))) {
@@ -65,39 +65,39 @@ function Login({ onLogin }) {
       setFetchingUsers(true);
       const range = `${SHEET_NAME}!A:C`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${range}?key=${API_KEY}`;
-      
+
       const response = await fetch(url);
       const data = await response.json();
-      
+
       if (data.values && data.values.length > 1) {
         const headers = data.values[0];
         const rows = data.values.slice(1);
-        
-        const usernameIndex = headers.findIndex(h => 
-          h && (h.toLowerCase().includes('username') || 
-          h.toLowerCase().includes('user') ||
-          h.toLowerCase() === 'username')
+
+        const usernameIndex = headers.findIndex(h =>
+          h && (h.toLowerCase().includes('username') ||
+            h.toLowerCase().includes('user') ||
+            h.toLowerCase() === 'username')
         );
-        
-        const passwordIndex = headers.findIndex(h => 
-          h && (h.toLowerCase().includes('password') || 
-          h.toLowerCase().includes('pass') ||
-          h.toLowerCase() === 'password')
+
+        const passwordIndex = headers.findIndex(h =>
+          h && (h.toLowerCase().includes('password') ||
+            h.toLowerCase().includes('pass') ||
+            h.toLowerCase() === 'password')
         );
-        
-        const positionIndex = headers.findIndex(h => 
-          h && (h.toLowerCase().includes('position') || 
-          h.toLowerCase().includes('role') ||
-          h.toLowerCase() === 'position')
+
+        const positionIndex = headers.findIndex(h =>
+          h && (h.toLowerCase().includes('position') ||
+            h.toLowerCase().includes('role') ||
+            h.toLowerCase() === 'position')
         );
-        
+
         if (usernameIndex !== -1 && passwordIndex !== -1) {
           const usersList = rows.map(row => {
             const username = row[usernameIndex] || '';
             const password = row[passwordIndex] || '';
             const position = positionIndex !== -1 ? (row[positionIndex] || '') : '';
             const role = getUserRole(username, position);
-            
+
             return {
               username: username,
               password: password,
@@ -106,7 +106,7 @@ function Login({ onLogin }) {
               role: role
             };
           }).filter(user => user.username && user.password);
-          
+
           setUsers(usersList);
           console.log('Users loaded:', usersList);
         } else {
@@ -126,7 +126,7 @@ function Login({ onLogin }) {
   };
 
   const getRoleIcon = (role) => {
-    switch(role) {
+    switch (role) {
       case 'Administrator': return '👑';
       case 'Manager': return '📊';
       case 'Supervisor': return '👔';
@@ -136,7 +136,7 @@ function Login({ onLogin }) {
   };
 
   const getRoleColor = (role) => {
-    switch(role) {
+    switch (role) {
       case 'Administrator': return '#8B5CF6';
       case 'Manager': return '#3B82F6';
       case 'Supervisor': return '#F59E0B';
@@ -147,7 +147,7 @@ function Login({ onLogin }) {
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    
+
     if (name === 'username') {
       // When username changes, find the selected user
       const selectedUser = users.find(user => user.username === value);
@@ -173,20 +173,20 @@ function Login({ onLogin }) {
 
   const handleLogin = async (e) => {
     e.preventDefault();
-    
+
     if (!formData.username || !formData.password) {
       setError("Please enter both username and password");
       return;
     }
 
     setLoading(true);
-    
+
     await new Promise(resolve => setTimeout(resolve, 800));
-    
+
     const matchedUser = users.find(
       user => user.username === formData.username
     );
-    
+
     if (matchedUser && matchedUser.password === formData.password) {
       const userData = {
         username: matchedUser.username,
@@ -195,19 +195,19 @@ function Login({ onLogin }) {
         position: matchedUser.position,
         loginTime: new Date().toISOString()
       };
-      
+
       localStorage.setItem("isAuthenticated", "true");
       localStorage.setItem("userData", JSON.stringify(userData));
-      
+
       setLoading(false);
-      
+
       if (onLogin && typeof onLogin === 'function') {
         onLogin(userData);
       }
-      
+
       // Dispatch custom event for auth change
       window.dispatchEvent(new Event('authChange'));
-      
+
       // Use React Router navigation instead of window.location
       navigate('/', { replace: true });
     } else {
@@ -249,7 +249,7 @@ function Login({ onLogin }) {
               <p className="brand-subtitle-pro">
                 Streamline your dispatch operations with our comprehensive management solution
               </p>
-              
+
               <div className="brand-features-pro">
                 <div className="feature-item-pro">
                   <span className="feature-icon">📊</span>
@@ -367,8 +367,8 @@ function Login({ onLogin }) {
                   </div>
                 </div>
 
-                <button 
-                  type="submit" 
+                <button
+                  type="submit"
                   className={`login-btn-pro ${loading ? 'loading' : ''}`}
                   disabled={loading || fetchingUsers}
                   style={{
@@ -402,10 +402,10 @@ function Login({ onLogin }) {
               </form>
 
               <div className="form-footer-pro" style={{ marginTop: '24px' }}>
-                <div className="security-badge-pro" style={{ 
-                  display: 'flex', 
-                  alignItems: 'center', 
-                  justifyContent: 'center', 
+                <div className="security-badge-pro" style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
                   gap: '8px',
                   fontSize: '12px',
                   color: '#666'

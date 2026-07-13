@@ -25,7 +25,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
     qualityTimeline: false,
     indexDetails: false
   });
-  
+
   const html5QrCodeRef = useRef(null);
   const scannerContainerRef = useRef(null);
   const fileInputRef = useRef(null);
@@ -35,15 +35,15 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
 
   // GOOGLE SHEETS CREDENTIALS
   const GOOGLE_SHEET_CONFIG = {
-    apiKey: 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk',
-    sheetId: '1dOCjNFwaAel5qun0_ZJVIGmREqjI76CJBBFIjM3NHv8',
+    apiKey: process.env.REACT_APP_GOOGLE_API_KEY || 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk',
+    sheetId: process.env.REACT_APP_PRODUCT_SHEET_ID || '1dOCjNFwaAel5qun0_ZJVIGmREqjI76CJBBFIjM3NHv8',
     range: 'LotBarcodeData'
   };
 
   // Index Sheet Configuration
   const INDEX_SHEET_CONFIG = {
-    apiKey: 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk',
-    sheetId: '1Hj3JeJEKB43aYYWv8gk2UhdU6BWuEQfCg5pBlTdBMNA',
+    apiKey: process.env.REACT_APP_GOOGLE_API_KEY || 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk',
+    sheetId: process.env.REACT_APP_INDEX_SHEET_ID || '1Hj3JeJEKB43aYYWv8gk2UhdU6BWuEQfCg5pBlTdBMNA',
     range: 'Index'
   };
 
@@ -65,14 +65,14 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
   const fetchIndexSheetData = async () => {
     try {
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${INDEX_SHEET_CONFIG.sheetId}/values/${INDEX_SHEET_CONFIG.range}?key=${INDEX_SHEET_CONFIG.apiKey}`;
-      
+
       const response = await fetch(url);
       const data = await response.json();
-      
+
       if (data.values && data.values.length > 0) {
         const headers = data.values[0];
         const rows = data.values.slice(1);
-        
+
         const formattedData = rows.map(row => {
           const record = {};
           headers.forEach((header, index) => {
@@ -80,7 +80,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
           });
           return record;
         });
-        
+
         setIndexSheetData(formattedData);
         console.log('Loaded Index sheet data:', formattedData.length, 'records');
         return formattedData;
@@ -101,27 +101,27 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
   const fetchGoogleSheetData = async () => {
     setIsLoading(true);
     setError(null);
-    
+
     try {
       // Fetch both sheets in parallel
       const [barcodeResponse, indexResponse] = await Promise.all([
         fetch(`https://sheets.googleapis.com/v4/spreadsheets/${GOOGLE_SHEET_CONFIG.sheetId}/values/${GOOGLE_SHEET_CONFIG.range}?key=${GOOGLE_SHEET_CONFIG.apiKey}`),
         fetch(`https://sheets.googleapis.com/v4/spreadsheets/${INDEX_SHEET_CONFIG.sheetId}/values/${INDEX_SHEET_CONFIG.range}?key=${INDEX_SHEET_CONFIG.apiKey}`)
       ]);
-      
+
       const barcodeData = await barcodeResponse.json();
       const indexData = await indexResponse.json();
-      
+
       // Process Barcode Data
       if (barcodeData.values && barcodeData.values.length > 0) {
         const headers = barcodeData.values[0];
         const rows = barcodeData.values.slice(1);
-        
+
         const formattedData = rows.map(row => {
           const record = {};
           headers.forEach((header, index) => {
             let value = row[index] || '';
-            
+
             if (header === 'Colors' || header === 'Sizes') {
               try {
                 value = JSON.parse(value);
@@ -136,12 +136,12 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
                 value = {};
               }
             }
-            
+
             record[header] = value;
           });
           return record;
         });
-        
+
         setAllBarcodeData(formattedData);
         showToast(`Loaded ${formattedData.length} records from database`, 'success');
         console.log('Loaded barcode data:', formattedData.length, 'records');
@@ -150,12 +150,12 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
         setAllBarcodeData([]);
         showToast('No data found in the database', 'error');
       }
-      
+
       // Process Index Data
       if (indexData.values && indexData.values.length > 0) {
         const headers = indexData.values[0];
         const rows = indexData.values.slice(1);
-        
+
         const formattedIndexData = rows.map(row => {
           const record = {};
           headers.forEach((header, index) => {
@@ -163,14 +163,14 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
           });
           return record;
         });
-        
+
         setIndexSheetData(formattedIndexData);
         console.log('Loaded Index sheet data:', formattedIndexData.length, 'records');
       } else {
         console.log('No Index data from API');
         setIndexSheetData([]);
       }
-      
+
     } catch (err) {
       console.error('Error fetching Google Sheet data:', err);
       setError('Failed to load data from Google Sheets. Please check your connection and try again.');
@@ -185,12 +185,12 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
   // Get Index data for a specific lot number
   const getIndexDataByLotNumber = (lotNumber) => {
     if (!lotNumber) return null;
-    
+
     // Search in index sheet data
-    const foundIndexData = indexSheetData.find(item => 
+    const foundIndexData = indexSheetData.find(item =>
       item['Lot Number']?.toString().trim() === lotNumber.toString().trim()
     );
-    
+
     return foundIndexData;
   };
 
@@ -236,11 +236,11 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
     ]);
     hints.set(DecodeHintType.TRY_HARDER, true);
     hints.set(DecodeHintType.CHARACTER_SET, 'UTF-8');
-    
+
     zxingReaderRef.current = new BrowserMultiFormatReader(hints);
-    
+
     fetchGoogleSheetData();
-    
+
     return () => {
       if (html5QrCodeRef.current && isScanning) {
         stopRealBarcodeScanner();
@@ -263,22 +263,22 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
 
     setIsLoading(true);
     setError(null);
-    
+
     const cleanBarcode = barcodeId.trim();
-    
+
     const foundData = allBarcodeData.find(item => {
       const barcodeIdField = item['Barcode ID']?.toString().trim();
       const lotNumberField = item['Lot Number']?.toString().trim();
-      
-      return barcodeIdField === cleanBarcode || 
-             lotNumberField === cleanBarcode ||
-             barcodeIdField?.includes(cleanBarcode) ||
-             lotNumberField?.includes(cleanBarcode);
+
+      return barcodeIdField === cleanBarcode ||
+        lotNumberField === cleanBarcode ||
+        barcodeIdField?.includes(cleanBarcode) ||
+        lotNumberField?.includes(cleanBarcode);
     });
-    
+
     setTimeout(() => {
       setIsLoading(false);
-      
+
       if (foundData) {
         showToast(`Found: ${foundData['Lot Number'] || foundData['Barcode ID']}`, 'success');
         processScannedBarcode(foundData);
@@ -292,7 +292,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
           status: 'not_found'
         };
         setScannedResult(notFoundResult);
-        
+
         if (onScanComplete) {
           onScanComplete(notFoundResult);
         }
@@ -314,14 +314,14 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
 
     setIsScanning(true);
     setError(null);
-    
+
     try {
       if (scannerContainerRef.current) {
         scannerContainerRef.current.innerHTML = '';
       }
-      
+
       html5QrCodeRef.current = new Html5Qrcode("barcode-scanner-container");
-      
+
       const config = {
         fps: 30,
         qrbox: { width: 300, height: 200 },
@@ -343,17 +343,17 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
           Html5QrcodeSupportedFormats.AZTEC
         ]
       };
-      
+
       await html5QrCodeRef.current.start(
         { facingMode: "environment" },
         config,
         (decodedText) => {
           console.log('Real barcode detected:', decodedText);
-          
+
           if (window.navigator && window.navigator.vibrate) {
             window.navigator.vibrate(200);
           }
-          
+
           try {
             const audioContext = new (window.AudioContext || window.webkitAudioContext)();
             const oscillator = audioContext.createOscillator();
@@ -365,10 +365,10 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
             oscillator.start();
             gainNode.gain.exponentialRampToValueAtTime(0.00001, audioContext.currentTime + 0.3);
             oscillator.stop(audioContext.currentTime + 0.3);
-          } catch(e) {
+          } catch (e) {
             // Audio not supported
           }
-          
+
           stopRealBarcodeScanner();
           searchBarcode(decodedText);
         },
@@ -378,10 +378,10 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
           }
         }
       );
-      
+
       showToast('Scanner started. Point camera at barcode.', 'success');
       console.log('Real barcode scanner started successfully');
-      
+
     } catch (err) {
       console.error("Error starting real barcode scanner:", err);
       showToast('Unable to access camera. Please check permissions.', 'error');
@@ -398,26 +398,26 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
   // Fallback scanner using ZXing with canvas
   const startFallbackScanner = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: "environment" } 
+      const stream = await navigator.mediaDevices.getUserMedia({
+        video: { facingMode: "environment" }
       });
-      
+
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
         videoRef.current.play();
-        
+
         const scanFrame = async () => {
           if (!isScanning || !videoRef.current || videoRef.current.paused) return;
-          
+
           if (canvasRef.current && videoRef.current.readyState === videoRef.current.HAVE_ENOUGH_DATA) {
             const canvas = canvasRef.current;
             const context = canvas.getContext('2d');
-            
+
             canvas.width = videoRef.current.videoWidth;
             canvas.height = videoRef.current.videoHeight;
-            
+
             context.drawImage(videoRef.current, 0, 0, canvas.width, canvas.height);
-            
+
             try {
               const result = await zxingReaderRef.current.decodeFromCanvas(canvas);
               if (result && result.getText()) {
@@ -431,10 +431,10 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
               // No barcode found
             }
           }
-          
+
           requestAnimationFrame(scanFrame);
         };
-        
+
         scanFrame();
       }
     } catch (err) {
@@ -467,11 +467,11 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
     return new Promise((resolve) => {
       const canvas = document.createElement('canvas');
       const ctx = canvas.getContext('2d');
-      
+
       let width = imgElement.width;
       let height = imgElement.height;
       const maxDimension = 1280;
-      
+
       if (width > maxDimension || height > maxDimension) {
         if (width > height) {
           height = (height * maxDimension) / width;
@@ -481,15 +481,15 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
           height = maxDimension;
         }
       }
-      
+
       canvas.width = width;
       canvas.height = height;
-      
+
       const versions = [];
-      
+
       ctx.drawImage(imgElement, 0, 0, width, height);
       versions.push(canvas.toDataURL('image/jpeg', 1.0));
-      
+
       ctx.drawImage(imgElement, 0, 0, width, height);
       const imgData1 = ctx.getImageData(0, 0, width, height);
       const data1 = imgData1.data;
@@ -501,7 +501,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
       }
       ctx.putImageData(imgData1, 0, 0);
       versions.push(canvas.toDataURL('image/jpeg', 0.9));
-      
+
       ctx.drawImage(imgElement, 0, 0, width, height);
       const imgData2 = ctx.getImageData(0, 0, width, height);
       const data2 = imgData2.data;
@@ -514,7 +514,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
       }
       ctx.putImageData(imgData2, 0, 0);
       versions.push(canvas.toDataURL('image/jpeg', 0.9));
-      
+
       ctx.drawImage(imgElement, 0, 0, width, height);
       const imgData3 = ctx.getImageData(0, 0, width, height);
       const data3 = imgData3.data;
@@ -532,7 +532,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
       }
       ctx.putImageData(imgData3, 0, 0);
       versions.push(canvas.toDataURL('image/jpeg', 0.9));
-      
+
       ctx.drawImage(imgElement, 0, 0, width, height);
       const imgData4 = ctx.getImageData(0, 0, width, height);
       const data4 = imgData4.data;
@@ -543,7 +543,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
       }
       ctx.putImageData(imgData4, 0, 0);
       versions.push(canvas.toDataURL('image/jpeg', 0.9));
-      
+
       resolve(versions);
     });
   };
@@ -553,10 +553,10 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
     const regions = [];
     const canvas = document.createElement('canvas');
     const ctx = canvas.getContext('2d');
-    
+
     const width = imgElement.width;
     const height = imgElement.height;
-    
+
     const regionDefinitions = [
       { x: width * 0.25, y: height * 0.25, w: width * 0.5, h: height * 0.5 },
       { x: 0, y: 0, w: width * 0.5, h: height * 0.5 },
@@ -564,18 +564,18 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
       { x: 0, y: height * 0.5, w: width * 0.5, h: height * 0.5 },
       { x: width * 0.5, y: height * 0.5, w: width * 0.5, h: height * 0.5 }
     ];
-    
+
     for (const region of regionDefinitions) {
       canvas.width = region.w;
       canvas.height = region.h;
       ctx.drawImage(imgElement, region.x, region.y, region.w, region.h, 0, 0, region.w, region.h);
-      
+
       const img = new Image();
       img.src = canvas.toDataURL('image/jpeg', 1.0);
       await new Promise((resolve) => { img.onload = resolve; });
       regions.push(img);
     }
-    
+
     return regions;
   };
 
@@ -585,25 +585,25 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
     const img = new Image();
     img.src = imageUrl;
     await new Promise((resolve) => { img.onload = resolve; });
-    
+
     let barcode = await scanWithZXing(img, 3);
     if (barcode) return barcode;
-    
+
     setScanProgress('Enhancing image for better detection...');
     const processedVersions = await preprocessImageForBarcode(img);
-    
+
     for (let i = 0; i < processedVersions.length; i++) {
       setScanProgress(`Trying detection method ${i + 1} of ${processedVersions.length}...`);
       const processedImg = new Image();
       processedImg.src = processedVersions[i];
       await new Promise((resolve) => { processedImg.onload = resolve; });
-      
+
       barcode = await scanWithZXing(processedImg, 2);
       if (barcode) return barcode;
-      
+
       await new Promise(resolve => setTimeout(resolve, 150));
     }
-    
+
     setScanProgress('Trying alternative detection method...');
     const tempScanner = new Html5Qrcode("temp-scanner-final");
     try {
@@ -619,55 +619,55 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
       console.log('Html5Qrcode fallback failed:', err);
     }
     await tempScanner.clear();
-    
+
     setScanProgress('Analyzing different image regions...');
     const regions = await extractImageRegions(img);
     for (const region of regions) {
       barcode = await scanWithZXing(region, 1);
       if (barcode) return barcode;
     }
-    
+
     return null;
   };
 
   // Scan image file
   const scanImageFile = async (file) => {
     if (!file) return;
-    
+
     const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp', 'image/bmp', 'image/tiff'];
     if (!validTypes.includes(file.type)) {
       showToast('Please upload a valid image file (JPEG, PNG, WEBP, BMP, or TIFF)', 'error');
       return;
     }
-    
+
     if (file.size > 15 * 1024 * 1024) {
       showToast('File size too large. Please upload an image less than 15MB.', 'error');
       return;
     }
-    
+
     setIsProcessingImage(true);
     setScanProgress('Preparing image for scanning...');
     const previewUrl = URL.createObjectURL(file);
     setImagePreview(previewUrl);
-    
+
     try {
       const detectedBarcode = await detectBarcodeFromImage(previewUrl);
-      
+
       if (detectedBarcode) {
         console.log('Barcode successfully detected:', detectedBarcode);
         setScanProgress('Barcode detected! Searching database...');
-        
+
         if (window.navigator && window.navigator.vibrate) {
           window.navigator.vibrate(100);
         }
-        
+
         showToast(`Barcode detected: ${detectedBarcode}`, 'success');
         searchBarcode(detectedBarcode);
       } else {
         setScanProgress('');
         showToast('No barcode could be detected in this image. Please try a clearer image.', 'error');
       }
-      
+
     } catch (err) {
       console.error('Error processing image:', err);
       showToast('Error processing image. Please try with a different image.', 'error');
@@ -698,7 +698,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
   const handleDrop = (event) => {
     event.preventDefault();
     event.stopPropagation();
-    
+
     const file = event.dataTransfer.files[0];
     if (file && file.type.startsWith('image/')) {
       scanImageFile(file);
@@ -720,7 +720,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
   const processScannedBarcode = (data) => {
     const lotNumber = data['Lot Number'];
     const indexData = getIndexDataByLotNumber(lotNumber);
-    
+
     const scanResult = {
       barcode: data['Barcode ID'] || data['Lot Number'],
       lotNumber: lotNumber,
@@ -730,17 +730,17 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
       indexData: indexData,
       status: data['Status'] || 'unknown'
     };
-    
+
     setScannedResult(scanResult);
-    
+
     const updatedHistory = [scanResult, ...scanHistory].slice(0, 20);
     setScanHistory(updatedHistory);
     localStorage.setItem('barcodeScanHistory', JSON.stringify(updatedHistory));
-    
+
     if (onScanComplete) {
       onScanComplete(scanResult);
     }
-    
+
     if (isScanning) {
       stopRealBarcodeScanner();
     }
@@ -788,7 +788,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
       },
       status: newStatus
     });
-    
+
     showToast(`Status updated to ${newStatus}`, 'success');
   };
 
@@ -811,7 +811,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
     const inProgressLots = allBarcodeData.filter(d => d['Status'] === 'In Progress').length;
     const printedLots = allBarcodeData.filter(d => d['Status'] === 'Printed').length;
     const totalUnits = allBarcodeData.reduce((sum, d) => sum + (parseInt(d['Total Pieces']) || 0), 0);
-    
+
     return { totalLots, completedLots, inProgressLots, printedLots, totalUnits };
   };
 
@@ -837,14 +837,14 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
 
       {/* Navigation Tabs */}
       <div className="nav-tabs">
-        <button 
+        <button
           className={`tab ${activeTab === 'scan' ? 'active' : ''}`}
           onClick={() => setActiveTab('scan')}
         >
           <span className="tab-icon">📷</span>
           <span>Scan Barcode</span>
         </button>
-        <button 
+        <button
           className={`tab ${activeTab === 'history' ? 'active' : ''}`}
           onClick={() => setActiveTab('history')}
         >
@@ -852,7 +852,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
           <span>Scan History</span>
           {scanHistory.length > 0 && <span className="tab-badge">{scanHistory.length}</span>}
         </button>
-        <button 
+        <button
           className={`tab ${activeTab === 'stats' ? 'active' : ''}`}
           onClick={() => setActiveTab('stats')}
         >
@@ -868,7 +868,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
           <div className="scan-tab">
             {/* Mode Selector */}
             <div className="mode-selector">
-              <button 
+              <button
                 className={`mode-option ${scanMode === 'manual' ? 'active' : ''}`}
                 onClick={() => {
                   setScanMode('manual');
@@ -881,7 +881,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
                   <small>Type barcode manually</small>
                 </div>
               </button>
-              <button 
+              <button
                 className={`mode-option ${scanMode === 'camera' ? 'active' : ''}`}
                 onClick={() => {
                   setScanMode('camera');
@@ -894,7 +894,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
                   <small>Real-time barcode scanner</small>
                 </div>
               </button>
-              <button 
+              <button
                 className={`mode-option ${scanMode === 'upload' ? 'active' : ''}`}
                 onClick={() => {
                   setScanMode('upload');
@@ -934,8 +934,8 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
             {scanMode === 'camera' && (
               <div className="camera-scanner">
                 <div className="scanner-wrapper">
-                  <div 
-                    id="barcode-scanner-container" 
+                  <div
+                    id="barcode-scanner-container"
                     ref={scannerContainerRef}
                     className="scanner-container"
                   ></div>
@@ -974,7 +974,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
             {/* Image Upload */}
             {scanMode === 'upload' && (
               <div className="upload-section">
-                <div 
+                <div
                   className="upload-area"
                   onDragOver={handleDragOver}
                   onDrop={handleDrop}
@@ -996,7 +996,7 @@ const BarcodeScanner = ({ onBack, onScanComplete }) => {
                 {imagePreview && !isProcessingImage && (
                   <div className="image-preview">
                     <img src={imagePreview} alt="Uploaded barcode" />
-                    <button 
+                    <button
                       className="remove-image"
                       onClick={(e) => {
                         e.stopPropagation();

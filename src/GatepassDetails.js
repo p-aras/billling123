@@ -4,8 +4,8 @@ import jsPDF from 'jspdf';
 
 // Google Sheets configuration
 const GOOGLE_SHEETS_CONFIG = {
-  apiKey: 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk',
-  sheetId: '1s8cXaMtG2XSxdOu1Ecve5aLI2MQcbMjVsn6Sih4hItk',
+  apiKey: process.env.REACT_APP_GOOGLE_API_KEY || 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk',
+  sheetId: process.env.REACT_APP_SPREADSHEET_ID || '1s8cXaMtG2XSxdOu1Ecve5aLI2MQcbMjVsn6Sih4hItk',
   sheetName: 'Bills',
 };
 
@@ -19,7 +19,7 @@ const GatepassDetails = ({ onBack, userRole, userData }) => {
   const [selectedRow, setSelectedRow] = useState(null);
   const [showModal, setShowModal] = useState(false);
   const [codes, setCodes] = useState({});
-  
+
   // Role-based access control state
   const [roleInfo, setRoleInfo] = useState({
     role: 'viewer',
@@ -34,13 +34,13 @@ const GatepassDetails = ({ onBack, userRole, userData }) => {
       console.log("Using userRole from prop:", userRole);
       return userRole;
     }
-    
+
     // Priority 2: From userData prop
     if (userData && userData.role && userData.role !== '') {
       console.log("Using role from userData prop:", userData.role);
       return userData.role;
     }
-    
+
     // Priority 3: From localStorage (userData)
     const storedUserData = localStorage.getItem('userData');
     if (storedUserData) {
@@ -54,14 +54,14 @@ const GatepassDetails = ({ onBack, userRole, userData }) => {
         console.error('Error parsing stored user data:', e);
       }
     }
-    
+
     // Priority 4: From userRole in localStorage
     const storedRole = localStorage.getItem('userRole');
     if (storedRole && storedRole !== '') {
       console.log("Using role from localStorage userRole:", storedRole);
       return storedRole;
     }
-    
+
     console.warn("No role found, defaulting to viewer");
     return 'viewer';
   };
@@ -74,53 +74,53 @@ const GatepassDetails = ({ onBack, userRole, userData }) => {
     }
   };
 
- const isWithinLastTwoDays = (dateString) => {
-  if (!dateString) return false;
-  
-  try {
-    // Get today's date at midnight
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-    
-    // Get yesterday's date
-    const yesterday = new Date(today);
-    yesterday.setDate(today.getDate() - 1);
-    
-    // Parse the gatepass date
-    let gatepassDate;
-    if (typeof dateString === 'string') {
-      // Handle YYYY-MM-DD format
-      if (dateString.includes('-')) {
-        const [year, month, day] = dateString.split('-');
-        gatepassDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+  const isWithinLastTwoDays = (dateString) => {
+    if (!dateString) return false;
+
+    try {
+      // Get today's date at midnight
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+
+      // Get yesterday's date
+      const yesterday = new Date(today);
+      yesterday.setDate(today.getDate() - 1);
+
+      // Parse the gatepass date
+      let gatepassDate;
+      if (typeof dateString === 'string') {
+        // Handle YYYY-MM-DD format
+        if (dateString.includes('-')) {
+          const [year, month, day] = dateString.split('-');
+          gatepassDate = new Date(parseInt(year), parseInt(month) - 1, parseInt(day));
+        } else {
+          gatepassDate = new Date(dateString);
+        }
       } else {
         gatepassDate = new Date(dateString);
       }
-    } else {
-      gatepassDate = new Date(dateString);
+
+      // Reset time to midnight for comparison
+      gatepassDate.setHours(0, 0, 0, 0);
+
+      // Check if date is today OR yesterday
+      return gatepassDate.getTime() === today.getTime() ||
+        gatepassDate.getTime() === yesterday.getTime();
+    } catch (error) {
+      console.error('Error checking date range:', error);
+      return false;
     }
-    
-    // Reset time to midnight for comparison
-    gatepassDate.setHours(0, 0, 0, 0);
-    
-    // Check if date is today OR yesterday
-    return gatepassDate.getTime() === today.getTime() || 
-           gatepassDate.getTime() === yesterday.getTime();
-  } catch (error) {
-    console.error('Error checking date range:', error);
-    return false;
-  }
-};
+  };
 
   const isToday = (dateString) => {
     if (!dateString) return false;
-    
+
     try {
       const gatepassDate = new Date(dateString);
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       gatepassDate.setHours(0, 0, 0, 0);
-      
+
       return gatepassDate.getTime() === today.getTime();
     } catch (error) {
       console.error('Error checking if today:', error);
@@ -128,171 +128,169 @@ const GatepassDetails = ({ onBack, userRole, userData }) => {
     }
   };
 
-const fetchGatepassData = async (accessLevel) => {
-  setLoading(true);
-  try {
-    const { apiKey, sheetId, sheetName } = GOOGLE_SHEETS_CONFIG;
-    let allRows = [];
-    let pageToken = '';
-    let hasMoreData = true;
-    
-    while (hasMoreData) {
-      let url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:Z?key=${apiKey}&majorDimension=ROWS`;
-      
-      if (pageToken) {
-        url += `&pageToken=${pageToken}`;
-      }
-      
-      console.log(`Fetching page with token: ${pageToken || 'initial'}`);
-      const response = await fetch(url);
-      
-      if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
-      }
-      
-      const data = await response.json();
-      
-      if (data.values && data.values.length > 0) {
-        if (allRows.length === 0) {
-          allRows = [...data.values];
-        } else {
-          allRows = [...allRows, ...data.values.slice(1)];
+  const fetchGatepassData = async (accessLevel) => {
+    setLoading(true);
+    try {
+      const { apiKey, sheetId, sheetName } = GOOGLE_SHEETS_CONFIG;
+      let allRows = [];
+      let pageToken = '';
+      let hasMoreData = true;
+
+      while (hasMoreData) {
+        let url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${sheetName}!A:Z?key=${apiKey}&majorDimension=ROWS`;
+
+        if (pageToken) {
+          url += `&pageToken=${pageToken}`;
         }
-        console.log(`Fetched ${data.values.length} rows this page. Total: ${allRows.length}`);
-      }
-      
-      if (data.nextPageToken) {
-        pageToken = data.nextPageToken;
-        console.log(`Next page token: ${pageToken}`);
-      } else {
-        hasMoreData = false;
-        console.log("No more pages to fetch");
-      }
-    }
-    
-    console.log(`Total rows fetched across all pages: ${allRows.length}`);
-    
-    if (allRows.length > 0) {
-      const headers = allRows[0];
-      const rows = allRows.slice(1);
-      
-      const columnIndices = {
-        billNumber: headers.findIndex(h => h === 'Bill Number'),
-        partyName: headers.findIndex(h => h === 'Party Name'),
-        billDate: headers.findIndex(h => h === 'Bill Date'),
-        totalBoxes: headers.findIndex(h => h === 'Total Boxes'),
-        totalBags: headers.findIndex(h => h === 'Total Bags'),
-        totalPolybags: headers.findIndex(h => h === 'Total Polybags'),
-        gatepassCreated: headers.findIndex(h => h === 'GATEPASS CREATED'),
-        gatepassTime: headers.findIndex(h => h === 'GATEPASS CREATION TIME'),
-        driverName: headers.findIndex(h => h === 'DRIVER NAME'),
-        driverContact: headers.findIndex(h => h === 'DRIVER CONTACT'),
-        driverVehicle: headers.findIndex(h => h === 'DRIVER VEHICLE NUMBER'),
-        porter: headers.findIndex(h => h === 'PORTER'),
-        byHand: headers.findIndex(h => h === 'BY HAND'),
-        byHandPerson: headers.findIndex(h => h === 'BY HAND PERSON NAME'),
-      };
-      
-      const formattedData = rows
-        .map((row, index) => {
-          // Skip rows that don't have a bill number
-          if (!row || row.length === 0 || !row[columnIndices.billNumber]) {
-            return null;
+
+        console.log(`Fetching page with token: ${pageToken || 'initial'}`);
+        const response = await fetch(url);
+
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+
+        const data = await response.json();
+
+        if (data.values && data.values.length > 0) {
+          if (allRows.length === 0) {
+            allRows = [...data.values];
+          } else {
+            allRows = [...allRows, ...data.values.slice(1)];
           }
-          
-          // CHECK: Filter to show ONLY bills WITHOUT gatepass
-          // If GATEPASS CREATED column has any value, skip this row
-          const gatepassValue = row[columnIndices.gatepassCreated] || '';
-          if (gatepassValue.trim() !== '') {
-            return null; // Skip bills that already have gatepass
-          }
-          
-          let formattedDate = '';
-          const rawBillDate = row[columnIndices.billDate] || '';
-          
-          if (rawBillDate) {
-            if (rawBillDate.match(/^\d{4}-\d{2}-\d{2}/)) {
-              formattedDate = rawBillDate;
-            } else {
-              const dateObj = new Date(rawBillDate);
-              if (!isNaN(dateObj.getTime())) {
-                formattedDate = dateObj.toISOString().split('T')[0];
-              } else {
+          console.log(`Fetched ${data.values.length} rows this page. Total: ${allRows.length}`);
+        }
+
+        if (data.nextPageToken) {
+          pageToken = data.nextPageToken;
+          console.log(`Next page token: ${pageToken}`);
+        } else {
+          hasMoreData = false;
+          console.log("No more pages to fetch");
+        }
+      }
+
+      console.log(`Total rows fetched across all pages: ${allRows.length}`);
+
+      if (allRows.length > 0) {
+        const headers = allRows[0];
+        const rows = allRows.slice(1);
+
+        const columnIndices = {
+          billNumber: headers.findIndex(h => h === 'Bill Number'),
+          partyName: headers.findIndex(h => h === 'Party Name'),
+          billDate: headers.findIndex(h => h === 'Bill Date'),
+          totalBoxes: headers.findIndex(h => h === 'Total Boxes'),
+          totalBags: headers.findIndex(h => h === 'Total Bags'),
+          totalPolybags: headers.findIndex(h => h === 'Total Polybags'),
+          gatepassCreated: headers.findIndex(h => h === 'GATEPASS CREATED'),
+          gatepassTime: headers.findIndex(h => h === 'GATEPASS CREATION TIME'),
+          driverName: headers.findIndex(h => h === 'DRIVER NAME'),
+          driverContact: headers.findIndex(h => h === 'DRIVER CONTACT'),
+          driverVehicle: headers.findIndex(h => h === 'DRIVER VEHICLE NUMBER'),
+          porter: headers.findIndex(h => h === 'PORTER'),
+          byHand: headers.findIndex(h => h === 'BY HAND'),
+          byHandPerson: headers.findIndex(h => h === 'BY HAND PERSON NAME'),
+        };
+
+        const formattedData = rows
+          .map((row, index) => {
+            // Skip rows that don't have a bill number
+            if (!row || row.length === 0 || !row[columnIndices.billNumber]) {
+              return null;
+            }
+
+            // CHECK: Calculate status rather than skipping
+            const gatepassValue = row[columnIndices.gatepassCreated] || '';
+            const hasGatepass = gatepassValue.trim() !== '';
+
+            let formattedDate = '';
+            const rawBillDate = row[columnIndices.billDate] || '';
+
+            if (rawBillDate) {
+              if (rawBillDate.match(/^\d{4}-\d{2}-\d{2}/)) {
                 formattedDate = rawBillDate;
+              } else {
+                const dateObj = new Date(rawBillDate);
+                if (!isNaN(dateObj.getTime())) {
+                  formattedDate = dateObj.toISOString().split('T')[0];
+                } else {
+                  formattedDate = rawBillDate;
+                }
               }
             }
-          }
-          
-          const totalBoxes = parseInt(row[columnIndices.totalBoxes]) || 0;
-          const totalBags = parseInt(row[columnIndices.totalBags]) || 0;
-          const totalPolybags = parseInt(row[columnIndices.totalPolybags]) || 0;
-          
-          let bagDetails = [];
-          if (totalBoxes > 0) bagDetails.push(`${totalBoxes} Petti`);
-          if (totalBags > 0) bagDetails.push(`${totalBags} Bora`);
-          if (totalPolybags > 0) bagDetails.push(`${totalPolybags} Polybags`);
-          const bagDetailsText = bagDetails.join(' + ') || '0';
-          
-          return {
-            id: `${row[columnIndices.billNumber] || index}_${index}`,
-            date: formattedDate,
-            originalBillDate: rawBillDate,
-            billNumber: row[columnIndices.billNumber] || '',
-            partyName: row[columnIndices.partyName] || '',
-            bagDetails: bagDetailsText,
-            driverName: row[columnIndices.driverName] || '',
-            vehicleNumber: row[columnIndices.driverVehicle] || '',
-            driverContact: row[columnIndices.driverContact] || '',
-            porter: row[columnIndices.porter] || '',
-            byHand: row[columnIndices.byHand] || '',
-            byHandPerson: row[columnIndices.byHandPerson] || '',
-            gatepassTime: row[columnIndices.gatepassTime] || '',
-            gatepassCreated: row[columnIndices.gatepassCreated] || '',
-            totalBoxes: totalBoxes,
-            totalBags: totalBags,
-            totalPolybags: totalPolybags,
-            rawData: row
-          };
-        })
-        .filter(row => row !== null); // Remove any null entries
-      
-      console.log(`Total records without gatepass: ${formattedData.length}`);
-      
-      // Apply role-based filter based on accessLevel parameter
-      let roleFilteredData;
-      if (accessLevel === 'admin') {
-        roleFilteredData = formattedData;
-        console.log(`Admin filter - Showing all ${formattedData.length} records without gatepass`);
-      } else if (accessLevel === 'manager') {
-        roleFilteredData = formattedData.filter(item => isWithinLastTwoDays(item.date));
-        console.log(`Manager filter - Showing ${roleFilteredData.length} records without gatepass from last 2 days`);
+
+            const totalBoxes = parseInt(row[columnIndices.totalBoxes]) || 0;
+            const totalBags = parseInt(row[columnIndices.totalBags]) || 0;
+            const totalPolybags = parseInt(row[columnIndices.totalPolybags]) || 0;
+
+            let bagDetails = [];
+            if (totalBoxes > 0) bagDetails.push(`${totalBoxes} Petti`);
+            if (totalBags > 0) bagDetails.push(`${totalBags} Bora`);
+            if (totalPolybags > 0) bagDetails.push(`${totalPolybags} Polybags`);
+            const bagDetailsText = bagDetails.join(' + ') || '0';
+
+            return {
+              id: `${row[columnIndices.billNumber] || index}_${index}`,
+              date: formattedDate,
+              originalBillDate: rawBillDate,
+              billNumber: row[columnIndices.billNumber] || '',
+              partyName: row[columnIndices.partyName] || '',
+              bagDetails: bagDetailsText,
+              driverName: row[columnIndices.driverName] || '',
+              vehicleNumber: row[columnIndices.driverVehicle] || '',
+              driverContact: row[columnIndices.driverContact] || '',
+              porter: row[columnIndices.porter] || '',
+              byHand: row[columnIndices.byHand] || '',
+              byHandPerson: row[columnIndices.byHandPerson] || '',
+              gatepassTime: row[columnIndices.gatepassTime] || '',
+              gatepassCreated: gatepassValue,
+              hasGatepass: hasGatepass,
+              totalBoxes: totalBoxes,
+              totalBags: totalBags,
+              totalPolybags: totalPolybags,
+              rawData: row
+            };
+          })
+          .filter(row => row !== null); // Remove any null entries
+
+        console.log(`Total records: ${formattedData.length}`);
+
+        // Apply role-based filter based on accessLevel parameter
+        let roleFilteredData;
+        if (accessLevel === 'admin') {
+          roleFilteredData = formattedData;
+          console.log(`Admin filter - Showing all ${formattedData.length} records`);
+        } else if (accessLevel === 'manager') {
+          roleFilteredData = formattedData.filter(item => isWithinLastTwoDays(item.date));
+          console.log(`Manager filter - Showing ${roleFilteredData.length} records from last 2 days`);
+        } else {
+          roleFilteredData = formattedData.filter(item => isToday(item.date));
+          console.log(`Viewer filter - Showing ${roleFilteredData.length} records from today`);
+        }
+
+        setGatepassData(formattedData);
+        setFilteredData(roleFilteredData);
+
+        if (formattedData.length === 0) {
+          console.log("No bills found");
+        }
       } else {
-        roleFilteredData = formattedData.filter(item => isToday(item.date));
-        console.log(`Viewer filter - Showing ${roleFilteredData.length} records without gatepass from today`);
+        console.log("No data found in the spreadsheet");
+        setGatepassData([]);
+        setFilteredData([]);
       }
-      
-      setGatepassData(formattedData);
-      setFilteredData(roleFilteredData);
-      
-      if (formattedData.length === 0) {
-        console.log("No bills without gatepass found");
-      }
-    } else {
-      console.log("No data found in the spreadsheet");
-      setGatepassData([]);
-      setFilteredData([]);
+    } catch (error) {
+      console.error('Error fetching gatepass data:', error);
+      alert(`Failed to fetch gatepass data from Google Sheets: ${error.message}`);
+    } finally {
+      setLoading(false);
     }
-  } catch (error) {
-    console.error('Error fetching gatepass data:', error);
-    alert(`Failed to fetch gatepass data from Google Sheets: ${error.message}`);
-  } finally {
-    setLoading(false);
-  }
-};
+  };
 
   const filterData = () => {
     let filtered = [...gatepassData];
-    
+
     // First apply role-based filter based on current roleInfo
     if (roleInfo.accessLevel === 'admin') {
       // Keep all data
@@ -302,7 +300,7 @@ const fetchGatepassData = async (accessLevel) => {
     } else {
       filtered = gatepassData.filter(item => isToday(item.date));
     }
-    
+
     // Then apply search and date filters
     if (searchTerm) {
       filtered = filtered.filter(item =>
@@ -313,15 +311,15 @@ const fetchGatepassData = async (accessLevel) => {
         item.vehicleNumber?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     if (startDate && (roleInfo.accessLevel === 'admin' || roleInfo.accessLevel === 'manager')) {
       filtered = filtered.filter(item => item.date >= startDate);
     }
-    
+
     if (endDate && (roleInfo.accessLevel === 'admin' || roleInfo.accessLevel === 'manager')) {
       filtered = filtered.filter(item => item.date <= endDate);
     }
-    
+
     setFilteredData(filtered);
   };
 
@@ -329,18 +327,18 @@ const fetchGatepassData = async (accessLevel) => {
   useEffect(() => {
     const effectiveRole = getEffectiveRole();
     const roleLower = effectiveRole?.toLowerCase() || '';
-    
+
     console.log("GatepassDetails - Effective role:", effectiveRole);
     console.log("GatepassDetails - Lowercase role:", roleLower);
-    
+
     // Determine access level
     let accessLevel = 'viewer';
     let message = 'Viewing today\'s gatepass records only';
-    
-    if (roleLower === 'admin' || 
-        roleLower === 'administrative' || 
-        roleLower === 'superadmin' || 
-        roleLower === 'administrator') {
+
+    if (roleLower === 'admin' ||
+      roleLower === 'administrative' ||
+      roleLower === 'superadmin' ||
+      roleLower === 'administrator') {
       console.log("✅ ADMIN access granted - Showing ALL gatepass records");
       accessLevel = 'admin';
       message = 'Viewing all gatepass records (Full Access)';
@@ -353,14 +351,14 @@ const fetchGatepassData = async (accessLevel) => {
       accessLevel = 'viewer';
       message = 'Viewing today\'s gatepass records only';
     }
-    
+
     // Set role info state
     setRoleInfo({
       role: effectiveRole,
       accessLevel: accessLevel,
       message: message
     });
-    
+
     // Fetch data with the determined access level
     fetchGatepassData(accessLevel);
   }, []);
@@ -392,216 +390,270 @@ const fetchGatepassData = async (accessLevel) => {
     return dateString;
   };
 
-const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
-  try {
-    if (typeof jsPDF === 'undefined') {
-      alert("PDF library not loaded. Please refresh the page.");
-      return false;
-    }
-    
-    const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
-    const pageWidth = doc.internal.pageSize.getWidth();
-    const pageHeight = doc.internal.pageSize.getHeight();
-    const margin = 10;
-    const contentWidth = pageWidth - (margin * 2);
+  const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
+    try {
+      if (typeof jsPDF === 'undefined') {
+        alert("PDF library not loaded. Please refresh the page.");
+        return false;
+      }
 
-    const safeFormatDisplayDate = (dateValue) => {
-      if (!dateValue) return '';
-      try {
-        if (typeof dateValue === 'string') {
-          const date = new Date(dateValue);
-          if (!isNaN(date.getTime())) {
-            return date.toLocaleDateString('en-GB');
+      const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'landscape' });
+      const pageWidth = doc.internal.pageSize.getWidth();
+      const pageHeight = doc.internal.pageSize.getHeight();
+      const margin = 10;
+      const contentWidth = pageWidth - (margin * 2);
+
+      const safeFormatDisplayDate = (dateValue) => {
+        if (!dateValue) return '';
+        try {
+          if (typeof dateValue === 'string') {
+            const date = new Date(dateValue);
+            if (!isNaN(date.getTime())) {
+              return date.toLocaleDateString('en-GB');
+            }
+            return dateValue;
           }
-          return dateValue;
+          return '';
+        } catch (error) {
+          return String(dateValue);
         }
-        return '';
-      } catch (error) {
-        return String(dateValue);
-      }
-    };
+      };
 
-    // Royal Navy themed PDF
-    doc.setFont("times", "bold");
-    doc.setFontSize(20);
-    doc.setTextColor(0, 32, 64);
-    doc.text("GATE PASS SUMMARY", pageWidth / 2, 15, { align: "center" });
-    
-    
-    
-    const generationTime = new Date().toLocaleString();
-    doc.text(`Generated on: ${generationTime}`, pageWidth / 2, 27, { align: "center" });
+      // Tally-style Header Section (Compact and Clean)
+      doc.setFont("times", "bold");
+      doc.setFontSize(14);
+      doc.setTextColor(0, 0, 0);
+      doc.text("DISPATCH GATEPASS  Summary", margin, 15);
 
-    // Updated headers - Increased Tempo no. width for full display
-    const headers = ["Date", "Bill No.", "Particulars", "Bags details", "Driver", "Tempo no."];
-    const colWidths = [20, 22, 75, 22, 28, 35]; // Tempo no.: 35mm for full number display
-    
-    let yPos = 35;
-    const itemsToShow = isSingle ? (singleItem ? [singleItem] : []) : (filteredData || []);
-    
-    if (itemsToShow.length === 0) {
-      doc.setFontSize(12);
-      doc.text("No data available to generate PDF", pageWidth / 2, yPos + 20, { align: "center" });
-      doc.save("Empty_Report.pdf");
-      return true;
-    }
+      doc.setFontSize(11);
+      doc.text("GATE PASS REGISTER", pageWidth - margin, 15, { align: "right" });
 
-    // Table Header with Royal Navy background
-    doc.setFontSize(10);
-    doc.setDrawColor(0, 32, 64);
-    doc.setFillColor(0, 32, 64);
-    doc.rect(margin, yPos, contentWidth, 10, 'F');
-    doc.setTextColor(255, 255, 255);
-    
-    let currentX = margin;
-    headers.forEach((header, i) => {
-      const textWidth = doc.getTextWidth(header);
-      doc.text(header, currentX + (colWidths[i] / 2) - (textWidth / 2), yPos + 7);
-      currentX += colWidths[i];
-      if (i < headers.length - 1) {
-        doc.setDrawColor(255, 255, 255);
-        doc.line(currentX, yPos, currentX, yPos + 10);
-        doc.setDrawColor(0, 32, 64);
-      }
-    });
+      doc.setDrawColor(80, 80, 80);
+      doc.setLineWidth(0.4);
+      doc.line(margin, 18, margin + contentWidth, 18);
 
-    yPos += 10;
-    doc.setTextColor(0, 0, 0);
-    doc.setFont("times", "normal");
-    doc.setFontSize(9);
+      // Report info fields
+      doc.setFont("times", "normal");
+      doc.setFontSize(8.5);
+      const startText = startDate ? safeFormatDisplayDate(startDate) : "Beginning";
+      const endText = endDate ? safeFormatDisplayDate(endDate) : "Latest";
+      doc.text(`Period: ${startText} to ${endText}`, margin, 23);
 
-    let totalPetti = 0;
-    let totalBora = 0;
-    let totalPolybags = 0;
+      const userName = userData?.fullName || userData?.name || userData?.username || roleInfo.role;
+      doc.text(`Prepared By: ${userName} (${getRoleDisplayName()})`, margin + 110, 23);
 
-    itemsToShow.forEach((item, index) => {
-      const rowHeight = 10;
-      const formattedDate = safeFormatDisplayDate(item.date);
-      
-      const values = [
-        formattedDate,
-        item.billNumber || '',
-        item.partyName || '',
-        item.bagDetails || '',
-        item.driverName || '',
-        item.vehicleNumber || ''
-      ];
+      const generationTime = new Date().toLocaleString('en-GB');
+      doc.text(`Print Date: ${generationTime}`, pageWidth - margin, 23, { align: "right" });
 
-      if (item.bagDetails && typeof item.bagDetails === 'string') {
-        const bagText = item.bagDetails;
-        const pettiMatch = bagText.match(/Petti[:\s]*(\d+)|(\d+)[\s]*Petti/i);
-        if (pettiMatch) {
-          totalPetti += parseInt(pettiMatch[1] || pettiMatch[2]) || 0;
-        }
-        const boraMatch = bagText.match(/Bora[:\s]*(\d+)|(\d+)[\s]*Bora/i);
-        if (boraMatch) {
-          totalBora += parseInt(boraMatch[1] || boraMatch[2]) || 0;
-        }
-        const polybagsMatch = bagText.match(/Polybags?[:\s]*(\d+)|(\d+)[\s]*Polybags?/i);
-        if (polybagsMatch) {
-          totalPolybags += parseInt(polybagsMatch[1] || polybagsMatch[2]) || 0;
-        }
+      doc.line(margin, 25, margin + contentWidth, 25);
+
+      // Widths summing exactly to 277mm for A4 landscape
+      const headers = ["Date", "Bill No.", "Party Particulars / Description", "Bags details", "Driver Name", "Vehicle No."];
+      const colWidths = [25, 30, 95, 47, 35, 45];
+
+      let yPos = 28;
+      const itemsToShow = isSingle ? (singleItem ? [singleItem] : []) : (filteredData || []);
+
+      if (itemsToShow.length === 0) {
+        doc.setFontSize(12);
+        doc.text("No gatepass data available for this selection.", pageWidth / 2, yPos + 20, { align: "center" });
+        doc.save("Gatepass_Empty_Register.pdf");
+        return true;
       }
 
-      if (yPos + rowHeight > pageHeight - 45) {
-        doc.addPage();
-        yPos = 10;
-        doc.setFontSize(10);
-        doc.setDrawColor(0, 32, 64);
-        doc.setFillColor(0, 32, 64);
-        doc.rect(margin, yPos, contentWidth, 10, 'F');
-        doc.setTextColor(255, 255, 255);
-        currentX = margin;
-        headers.forEach((header, i) => {
-          const textWidth = doc.getTextWidth(header);
-          doc.text(header, currentX + (colWidths[i] / 2) - (textWidth / 2), yPos + 7);
-          currentX += colWidths[i];
-          if (i < headers.length - 1) {
-            doc.setDrawColor(255, 255, 255);
-            doc.line(currentX, yPos, currentX, yPos + 10);
-            doc.setDrawColor(0, 32, 64);
-          }
-        });
-        yPos += 10;
-        doc.setTextColor(0, 0, 0);
-      }
+      // Render Table Header
+      doc.setFont("times", "bold");
+      doc.setFontSize(9);
+      doc.setFillColor(240, 242, 245);
+      doc.rect(margin, yPos, contentWidth, 8, 'F');
+      doc.rect(margin, yPos, contentWidth, 8); // Header border outline
 
-      doc.setDrawColor(200, 200, 200);
-      doc.rect(margin, yPos, contentWidth, rowHeight);
-      let rowX = margin;
-      values.forEach((val, i) => {
-        let text = String(val || '');
-        // Adjust truncation - REMOVED truncation for Tempo no. column
-        if (i === 2 && text.length > 50) { // Party name column
-          text = text.substring(0, 47) + '...';
-        }
-        if (i === 1 && text.length > 12) { // Bill number column
-          text = text.substring(0, 10) + '...';
-        }
-        // No truncation for Tempo no. (i === 5) - display full number
-        doc.text(text, rowX + 2, yPos + 6);
-        rowX += colWidths[i];
-        if (i < values.length - 1) {
-          doc.line(rowX, yPos, rowX, yPos + rowHeight);
+      let currentX = margin;
+      headers.forEach((header, i) => {
+        doc.text(header, currentX + 2, yPos + 5.5);
+        currentX += colWidths[i];
+      });
+
+      // Header column lines
+      let headLineX = margin;
+      colWidths.forEach((w, i) => {
+        headLineX += w;
+        if (i < colWidths.length - 1) {
+          doc.line(headLineX, yPos, headLineX, yPos + 8);
         }
       });
-      yPos += rowHeight;
-    });
 
-    if (totalPetti > 0 || totalBora > 0 || totalPolybags > 0) {
-      yPos += 5;
-      const summaryHeight = 35;
-      
-      if (yPos + summaryHeight > pageHeight - margin) {
-        doc.addPage();
-        yPos = 20;
-      }
-      
-      doc.setDrawColor(0, 32, 64);
-      doc.setFillColor(240, 248, 255);
-      doc.rect(margin, yPos, contentWidth, summaryHeight, 'F');
-      doc.rect(margin, yPos, contentWidth, summaryHeight);
-      
-      doc.setFont("times", "bold");
-      doc.setFontSize(12);
-      doc.setTextColor(0, 32, 64);
-      doc.text("TOTAL SUMMARY", pageWidth / 2, yPos + 8, { align: "center" });
-      
-      doc.setFontSize(10);
+      yPos += 8;
       doc.setTextColor(0, 0, 0);
-      const summaryStartX = margin + 10;
-      let summaryTextY = yPos + 18;
-      
-      doc.text(`Total Petti: ${totalPetti}`, summaryStartX, summaryTextY);
-      doc.text(`Total Bora: ${totalBora}`, summaryStartX + 60, summaryTextY);
-      doc.text(`Total Polybags: ${totalPolybags}`, summaryStartX + 120, summaryTextY);
-      
-      summaryTextY += 8;
-      const grandTotal = totalPetti + totalBora + totalPolybags;
+
+      let totalPetti = 0;
+      let totalBora = 0;
+      let totalPolybags = 0;
+
+      // Render Data Rows
+      itemsToShow.forEach((item, index) => {
+        const rowHeight = 8;
+        const formattedDate = safeFormatDisplayDate(item.date);
+
+        const values = [
+          formattedDate,
+          item.billNumber || '',
+          item.partyName || '',
+          item.bagDetails || '',
+          item.driverName || '',
+          item.vehicleNumber || ''
+        ];
+
+        // Sum bags details
+        if (item.bagDetails && typeof item.bagDetails === 'string') {
+          const bagText = item.bagDetails;
+          const pettiMatch = bagText.match(/Petti[:\s]*(\d+)|(\d+)[\s]*Petti/i);
+          if (pettiMatch) {
+            totalPetti += parseInt(pettiMatch[1] || pettiMatch[2]) || 0;
+          }
+          const boraMatch = bagText.match(/Bora[:\s]*(\d+)|(\d+)[\s]*Bora/i);
+          if (boraMatch) {
+            totalBora += parseInt(boraMatch[1] || boraMatch[2]) || 0;
+          }
+          const polybagsMatch = bagText.match(/Polybags?[:\s]*(\d+)|(\d+)[\s]*Polybags?/i);
+          if (polybagsMatch) {
+            totalPolybags += parseInt(polybagsMatch[1] || polybagsMatch[2]) || 0;
+          }
+        }
+
+        // Check vertical overflow
+        if (yPos + rowHeight > pageHeight - 30) {
+          doc.addPage();
+          yPos = 15;
+          doc.setFont("times", "bold");
+          doc.setFontSize(9);
+          doc.setFillColor(240, 242, 245);
+          doc.rect(margin, yPos, contentWidth, 8, 'F');
+          doc.rect(margin, yPos, contentWidth, 8);
+          let headX = margin;
+          headers.forEach((h, i) => {
+            doc.text(h, headX + 2, yPos + 5.5);
+            headX += colWidths[i];
+          });
+
+          let headL = margin;
+          colWidths.forEach((w, i) => {
+            headL += w;
+            if (i < colWidths.length - 1) {
+              doc.line(headL, yPos, headL, yPos + 8);
+            }
+          });
+          yPos += 8;
+        }
+
+        // Draw row outline box
+        doc.setDrawColor(180, 180, 180);
+        doc.rect(margin, yPos, contentWidth, rowHeight);
+
+        let rowX = margin;
+        values.forEach((val, i) => {
+          let text = String(val || '');
+          if (i === 2 && text.length > 60) {
+            text = text.substring(0, 57) + '...';
+          }
+          doc.setFont("times", "normal");
+          doc.setFontSize(8.5);
+          doc.text(text, rowX + 2, yPos + 5.5);
+          rowX += colWidths[i];
+        });
+
+        // Column dividers
+        let colDivX = margin;
+        colWidths.forEach((w, i) => {
+          colDivX += w;
+          if (i < colWidths.length - 1) {
+            doc.line(colDivX, yPos, colDivX, yPos + rowHeight);
+          }
+        });
+
+        yPos += rowHeight;
+      });
+
+      // Tally ledger grand total footer row
+      const totalRowHeight = 8;
+      if (yPos + totalRowHeight > pageHeight - 30) {
+        doc.addPage();
+        yPos = 15;
+      }
+
+      // Draw top total border
+      doc.setDrawColor(0, 0, 0);
+      doc.setLineWidth(0.4);
+      doc.line(margin, yPos, margin + contentWidth, yPos);
+
+      // Print columns in Grand Total row
       doc.setFont("times", "bold");
-      doc.setTextColor(0, 32, 64);
-      doc.text(`Grand Total (All Bags): ${grandTotal}`, summaryStartX, summaryTextY);
+      doc.setFontSize(9);
+      doc.text("GRAND TOTAL", margin + colWidths[0] + colWidths[1] + 2, yPos + 5.5);
+
+      // Bags totals in bags detail column
+      let parts = [];
+      if (totalPetti > 0) parts.push(`${totalPetti} Petti`);
+      if (totalBora > 0) parts.push(`${totalBora} Bora`);
+      if (totalPolybags > 0) parts.push(`${totalPolybags} Poly`);
+      const totalBagsText = parts.join(" + ") || "0 Bags";
+      doc.text(totalBagsText, margin + colWidths[0] + colWidths[1] + colWidths[2] + 2, yPos + 5.5);
+
+      // Total count in driver column
+      doc.text(`Bills: ${itemsToShow.length}`, margin + colWidths[0] + colWidths[1] + colWidths[2] + colWidths[3] + 2, yPos + 5.5);
+
+      // Draw vertical lines in Total row
+      let totLineX = margin;
+      colWidths.forEach((w, i) => {
+        totLineX += w;
+        if (i < colWidths.length - 1) {
+          doc.line(totLineX, yPos, totLineX, yPos + totalRowHeight);
+        }
+      });
+
+      yPos += totalRowHeight;
+
+      // Draw Tally double border underneath totals
+      doc.line(margin, yPos, margin + contentWidth, yPos);
+      doc.line(margin, yPos + 0.8, margin + contentWidth, yPos + 0.8);
+
+      // Sign-off section (Checked By / Authorised Signatory)
+      yPos += 18;
+      if (yPos > pageHeight - 15) {
+        doc.addPage();
+        yPos = 30;
+      }
+
+      doc.setFont("times", "normal");
+      doc.setFontSize(8.5);
+
+      doc.text("Prepared By", margin + 10, yPos);
+      doc.line(margin + 5, yPos - 5, margin + 45, yPos - 5);
+
+      doc.text("Checked By", margin + 110, yPos);
+      doc.line(margin + 100, yPos - 5, margin + 140, yPos - 5);
+
+      doc.text("Authorised Signatory", pageWidth - margin - 45, yPos);
+      doc.line(pageWidth - margin - 50, yPos - 5, pageWidth - margin - 5, yPos - 5);
+
+      // Standard footer
+      const footerY = pageHeight - 8;
+      doc.setFontSize(7.5);
+      doc.setTextColor(120, 120, 120);
+      doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - margin, footerY, { align: "right" });
+
+      const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+      const fileName = `Gatepass_Register_${timestamp}.pdf`;
+
+      doc.save(fileName);
+      return true;
+
+    } catch (error) {
+      console.error("PDF Error:", error);
+      alert(`Failed to generate PDF: ${error.message}`);
+      return false;
     }
-
-    const footerY = pageHeight - 10;
-    doc.setFontSize(8);
-    doc.setTextColor(100, 100, 100);
-    const userName = userData?.name || userData?.username || roleInfo.role;
-    doc.text(`Generated by: ${userName} (${roleInfo.accessLevel.toUpperCase()})`, margin, footerY);
-    doc.text(`Page ${doc.internal.getNumberOfPages()}`, pageWidth - margin, footerY, { align: "right" });
-
-    const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
-    const fileName = `Gatepass_Summary_${roleInfo.accessLevel}_${timestamp}.pdf`;
-    
-    doc.save(fileName);
-    return true;
-
-  } catch (error) {
-    console.error("PDF Error:", error);
-    alert(`Failed to generate PDF: ${error.message}`);
-    return false;
-  }
-};
+  };
 
   const downloadAllDataPDF = () => {
     if (filteredData.length === 0) {
@@ -616,7 +668,7 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
   };
 
   const getRoleBadgeColor = () => {
-    switch(roleInfo.accessLevel) {
+    switch (roleInfo.accessLevel) {
       case 'admin': return '#1e3a5f';
       case 'manager': return '#2c5f8a';
       default: return '#3a7ca5';
@@ -624,7 +676,7 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
   };
 
   const getRoleDisplayName = () => {
-    switch(roleInfo.accessLevel) {
+    switch (roleInfo.accessLevel) {
       case 'admin': return 'Administrator';
       case 'manager': return 'Manager';
       default: return 'Viewer';
@@ -634,21 +686,21 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
   return (
     <div className="gatepass-container" style={{
       minHeight: '100vh',
-      background: 'linear-gradient(135deg, #ffffff 0%, #ffffff 100%)',
-      padding: '10px'
+      background: '#f1f5f9',
+      padding: '24px 16px'
     }}>
       <div className="gatepass-paper" style={{
         maxWidth: '2400px',
         margin: '0 auto',
         background: 'white',
-        borderRadius: '16px',
-        boxShadow: '0 20px 60px rgba(0, 32, 64, 0.15), 0 1px 3px rgba(0, 0, 0, 0.05)',
+        borderRadius: '20px',
+        boxShadow: '0 10px 30px rgba(15, 23, 42, 0.05)',
         overflow: 'hidden',
-        border: '1px solid rgba(0, 32, 64, 0.1)'
+        border: '1px solid rgba(15, 23, 42, 0.08)'
       }}>
         {/* Header with Royal Navy theme */}
         <div style={{
-          background: 'linear-gradient(135deg, #0a2540 0%, #1e3a5f 100%)',
+          background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
           padding: '24px 32px',
           borderBottom: '4px solid #ffd700'
         }}>
@@ -659,7 +711,7 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
             flexWrap: 'wrap',
             gap: '16px'
           }}>
-            <button 
+            <button
               onClick={handleBackNavigation}
               style={{
                 background: 'rgba(255, 255, 255, 0.15)',
@@ -682,7 +734,7 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
               <span style={{ fontSize: '18px' }}>←</span>
               <span>Back</span>
             </button>
-            
+
             <div style={{ textAlign: 'center' }}>
               <h1 style={{
                 color: 'white',
@@ -701,7 +753,7 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
                 Manage and track all gatepass entries
               </p>
             </div>
-            
+
             <div style={{
               background: 'rgba(255, 255, 255, 0.15)',
               padding: '8px 20px',
@@ -743,17 +795,17 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
             <span>📋 {roleInfo.message}</span>
           </div>
           {(() => {
-            const displayName = userData?.name || userData?.username || 
-                               (() => {
-                                 try {
-                                   const stored = localStorage.getItem('userData');
-                                   if (stored) {
-                                     const parsed = JSON.parse(stored);
-                                     return parsed.name || parsed.username;
-                                   }
-                                 } catch(e) {}
-                                 return null;
-                               })();
+            const displayName = userData?.name || userData?.username ||
+              (() => {
+                try {
+                  const stored = localStorage.getItem('userData');
+                  if (stored) {
+                    const parsed = JSON.parse(stored);
+                    return parsed.name || parsed.username;
+                  }
+                } catch (e) { }
+                return null;
+              })();
             return displayName && (
               <div style={{
                 display: 'flex',
@@ -801,7 +853,7 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
                 onBlur={(e) => e.target.style.borderColor = '#cbd5e1'}
               />
             </div>
-            
+
             {(roleInfo.accessLevel === 'admin' || roleInfo.accessLevel === 'manager') && (
               <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
                 <input
@@ -852,7 +904,7 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
                 Clear Filters
               </button>
             )}
-            
+
             <button
               onClick={() => {
                 const effectiveRole = getEffectiveRole();
@@ -884,7 +936,7 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
             >
               <span>↻</span> Refresh
             </button>
-            
+
             <button
               onClick={downloadAllDataPDF}
               style={{
@@ -936,32 +988,33 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
               background: 'white',
               borderRadius: '12px',
               overflow: 'hidden',
-              boxShadow: '0 1px 3px rgba(0, 0, 0, 0.1)'
+              boxShadow: '0 4px 12px rgba(15, 23, 42, 0.04)'
             }}>
               <thead>
-                <tr style={{ background: '#1e3a5f' }}>
-                  <th style={{ padding: '14px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '13px', borderBottom: '2px solid #ffd700' }}>Date</th>
-                  <th style={{ padding: '14px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '13px', borderBottom: '2px solid #ffd700' }}>Bill No.</th>
-                  <th style={{ padding: '14px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '13px', borderBottom: '2px solid #ffd700' }}>Party Name</th>
-                  <th style={{ padding: '14px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '13px', borderBottom: '2px solid #ffd700' }}>Packing Details</th>
-                  <th style={{ padding: '14px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '13px', borderBottom: '2px solid #ffd700' }}>Driver</th>
-                  <th style={{ padding: '14px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '13px', borderBottom: '2px solid #ffd700' }}>Vehicle No.</th>
-                  <th style={{ padding: '14px 12px', textAlign: 'left', color: 'white', fontWeight: '600', fontSize: '13px', borderBottom: '2px solid #ffd700' }}>Contact</th>
-                  <th style={{ padding: '14px 12px', textAlign: 'center', color: 'white', fontWeight: '600', fontSize: '13px', borderBottom: '2px solid #ffd700' }}>Actions</th>
+                <tr style={{ background: '#0f172a' }}>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'white', fontWeight: '700', fontSize: '13px', borderBottom: '3px solid #f59e0b' }}>Date</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'white', fontWeight: '700', fontSize: '13px', borderBottom: '3px solid #f59e0b' }}>Bill No.</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'white', fontWeight: '700', fontSize: '13px', borderBottom: '3px solid #f59e0b' }}>Party Name</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'white', fontWeight: '700', fontSize: '13px', borderBottom: '3px solid #f59e0b' }}>Packing Details</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'white', fontWeight: '700', fontSize: '13px', borderBottom: '3px solid #f59e0b' }}>Driver</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'white', fontWeight: '700', fontSize: '13px', borderBottom: '3px solid #f59e0b' }}>Vehicle No.</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'white', fontWeight: '700', fontSize: '13px', borderBottom: '3px solid #f59e0b' }}>Contact</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'left', color: 'white', fontWeight: '700', fontSize: '13px', borderBottom: '3px solid #f59e0b' }}>Status</th>
+                  <th style={{ padding: '16px 12px', textAlign: 'center', color: 'white', fontWeight: '700', fontSize: '13px', borderBottom: '3px solid #f59e0b' }}>Actions</th>
                 </tr>
               </thead>
               <tbody>
                 {filteredData.length === 0 ? (
                   <tr>
-                    <td colSpan="8" style={{
+                    <td colSpan="9" style={{
                       textAlign: 'center',
                       padding: '60px 20px',
-                      background: '#fafbfc'
+                      background: '#f8fafc'
                     }}>
                       <div>
                         <div style={{ fontSize: '48px', marginBottom: '12px' }}>📋</div>
-                        <p style={{ color: '#64748b', margin: '0 0 8px 0', fontWeight: '500' }}>No records found</p>
-                        <small style={{ color: '#94a3b8' }}>
+                        <p style={{ color: '#0f172a', margin: '0 0 8px 0', fontWeight: '700' }}>No records found</p>
+                        <small style={{ color: '#475569', fontWeight: '500' }}>
                           {roleInfo.accessLevel === 'admin' && 'Try adjusting your search filters'}
                           {roleInfo.accessLevel === 'manager' && 'No records found in the last 2 days'}
                           {roleInfo.accessLevel === 'viewer' && 'No records found for today'}
@@ -976,44 +1029,62 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
                       background: index % 2 === 0 ? 'white' : '#f8fafc',
                       transition: 'background 0.2s'
                     }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = index % 2 === 0 ? 'white' : '#f8fafc'}>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>{formatDisplayDate(item.date)}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', fontWeight: '600', color: '#1e3a5f' }}>{item.billNumber}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>{item.partyName}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>
+                      onMouseEnter={(e) => e.currentTarget.style.background = '#f1f5f9'}
+                      onMouseLeave={(e) => e.currentTarget.style.background = index % 2 === 0 ? 'white' : '#f8fafc'}>
+                      <td style={{ padding: '14px 12px', fontSize: '13px', color: '#0f172a', fontWeight: '600' }}>{formatDisplayDate(item.date)}</td>
+                      <td style={{ padding: '14px 12px', fontSize: '13px', fontWeight: '700', color: '#1e3a5f', fontFamily: 'monospace' }}>{item.billNumber}</td>
+                      <td style={{ padding: '14px 12px', fontSize: '13px', color: '#0f172a', fontWeight: '600' }}>{item.partyName}</td>
+                      <td style={{ padding: '14px 12px', fontSize: '13px', color: '#0f172a' }}>
                         <span style={{
                           background: '#e0f2fe',
+                          color: '#0369a1',
                           padding: '4px 8px',
                           borderRadius: '6px',
-                          fontSize: '12px',
+                          fontSize: '11px',
+                          fontWeight: '700',
                           display: 'inline-block'
                         }}>
                           {item.bagDetails}
                         </span>
                       </td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>{item.driverName || '-'}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', fontFamily: 'monospace', color: '#334155' }}>{item.vehicleNumber || '-'}</td>
-                      <td style={{ padding: '12px', fontSize: '13px', color: '#334155' }}>{item.driverContact || '-'}</td>
-                      <td style={{ padding: '12px', textAlign: 'center' }}>
+                      <td style={{ padding: '14px 12px', fontSize: '13px', color: '#0f172a', fontWeight: '600' }}>{item.driverName || '-'}</td>
+                      <td style={{ padding: '14px 12px', fontSize: '13px', fontFamily: 'monospace', color: '#0f172a', fontWeight: '600' }}>{item.vehicleNumber || '-'}</td>
+                      <td style={{ padding: '14px 12px', fontSize: '13px', color: '#0f172a', fontWeight: '600' }}>{item.driverContact || '-'}</td>
+                      <td style={{ padding: '14px 12px', fontSize: '13px' }}>
+                        <span style={{
+                          background: item.hasGatepass ? '#d1fae5' : '#fee2e2',
+                          color: item.hasGatepass ? '#065f46' : '#991b1b',
+                          padding: '4px 10px',
+                          borderRadius: '12px',
+                          fontSize: '11px',
+                          fontWeight: '800',
+                          display: 'inline-flex',
+                          alignItems: 'center',
+                          gap: '4px'
+                        }}>
+                          {item.hasGatepass ? '✓ Created' : '⚠ Pending'}
+                        </span>
+                      </td>
+                      <td style={{ padding: '14px 12px', textAlign: 'center' }}>
                         <div style={{ display: 'flex', gap: '8px', justifyContent: 'center' }}>
                           <button
                             onClick={() => viewDetails(item)}
                             style={{
                               padding: '6px 12px',
-                              background: '#1e3a5f',
+                              background: '#0f172a',
                               color: 'white',
                               border: 'none',
                               borderRadius: '6px',
                               cursor: 'pointer',
                               fontSize: '12px',
+                              fontWeight: '600',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
                               transition: 'all 0.2s'
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#2c5f8a'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = '#1e3a5f'}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#1e293b'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = '#0f172a'}
                           >
                             👁️ View
                           </button>
@@ -1021,20 +1092,20 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
                             onClick={() => generateSinglePDF(item)}
                             style={{
                               padding: '6px 12px',
-                              background: '#ffd700',
-                              color: '#1e3a5f',
+                              background: '#f59e0b',
+                              color: '#ffffff',
                               border: 'none',
                               borderRadius: '6px',
                               cursor: 'pointer',
                               fontSize: '12px',
-                              fontWeight: '500',
+                              fontWeight: '700',
                               display: 'inline-flex',
                               alignItems: 'center',
                               gap: '4px',
                               transition: 'all 0.2s'
                             }}
-                            onMouseEnter={(e) => e.currentTarget.style.background = '#ffed4a'}
-                            onMouseLeave={(e) => e.currentTarget.style.background = '#ffd700'}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#d97706'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = '#f59e0b'}
                           >
                             📄 PDF
                           </button>
@@ -1057,7 +1128,7 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
           left: 0,
           right: 0,
           bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
+          background: 'rgba(15, 23, 42, 0.4)',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
@@ -1066,37 +1137,39 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
         }} onClick={() => setShowModal(false)}>
           <div style={{
             background: 'white',
-            borderRadius: '16px',
+            borderRadius: '20px',
             maxWidth: '500px',
             width: '90%',
             maxHeight: '80vh',
             overflow: 'auto',
-            boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
-            border: '1px solid rgba(0, 32, 64, 0.2)'
+            boxShadow: '0 20px 40px rgba(15, 23, 42, 0.15)',
+            border: '1px solid rgba(15, 23, 42, 0.08)'
           }} onClick={(e) => e.stopPropagation()}>
             <div style={{
               padding: '20px 24px',
-              background: 'linear-gradient(135deg, #1e3a5f 0%, #0a2540 100%)',
+              background: 'linear-gradient(135deg, #0f172a 0%, #1e293b 100%)',
               color: 'white',
               display: 'flex',
               justifyContent: 'space-between',
-              alignItems: 'center'
+              alignItems: 'center',
+              borderBottom: '3px solid #f59e0b'
             }}>
-              <h3 style={{ margin: 0, fontSize: '18px' }}>Bill Details</h3>
+              <h3 style={{ margin: 0, fontSize: '18px', fontWeight: '800', fontFamily: 'Outfit, sans-serif' }}>Bill Details</h3>
               <button
                 onClick={() => setShowModal(false)}
                 style={{
-                  background: 'rgba(255, 255, 255, 0.2)',
+                  background: 'rgba(255, 255, 255, 0.15)',
                   border: 'none',
                   color: 'white',
-                  fontSize: '24px',
+                  fontSize: '20px',
                   cursor: 'pointer',
                   width: '32px',
                   height: '32px',
                   borderRadius: '8px',
                   display: 'flex',
                   alignItems: 'center',
-                  justifyContent: 'center'
+                  justifyContent: 'center',
+                  fontWeight: 'bold'
                 }}
               >
                 ×
@@ -1104,40 +1177,40 @@ const downloadGatepassPDF = (isSingle = false, singleItem = null) => {
             </div>
             <div style={{ padding: '24px' }}>
               <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Bill Number</label>
-                <span style={{ fontSize: '16px', fontWeight: '600', color: '#1e3a5f' }}>{selectedRow.billNumber}</span>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Bill Number</label>
+                <span style={{ fontSize: '16px', fontWeight: '800', color: '#1e3a5f', fontFamily: 'monospace' }}>{selectedRow.billNumber}</span>
               </div>
               <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Bill Date</label>
-                <span style={{ fontSize: '14px', color: '#334155' }}>{formatDisplayDate(selectedRow.date)}</span>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Bill Date</label>
+                <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '700' }}>{formatDisplayDate(selectedRow.date)}</span>
               </div>
               <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Party Name</label>
-                <span style={{ fontSize: '14px', color: '#334155' }}>{selectedRow.partyName}</span>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Party Name</label>
+                <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '700' }}>{selectedRow.partyName}</span>
               </div>
               <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Packing Details</label>
-                <span style={{ fontSize: '14px', color: '#334155' }}>{selectedRow.bagDetails}</span>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Packing Details</label>
+                <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '700' }}>{selectedRow.bagDetails}</span>
               </div>
               <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Driver Name</label>
-                <span style={{ fontSize: '14px', color: '#334155' }}>{selectedRow.driverName || 'Not assigned'}</span>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Driver Name</label>
+                <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '700' }}>{selectedRow.driverName || 'Not assigned'}</span>
               </div>
               <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Vehicle Number</label>
-                <span style={{ fontSize: '14px', color: '#334155' }}>{selectedRow.vehicleNumber || 'Not assigned'}</span>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Vehicle Number</label>
+                <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '700', fontFamily: 'monospace' }}>{selectedRow.vehicleNumber || 'Not assigned'}</span>
               </div>
               <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Driver Contact</label>
-                <span style={{ fontSize: '14px', color: '#334155' }}>{selectedRow.driverContact || 'Not assigned'}</span>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Driver Contact</label>
+                <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '700' }}>{selectedRow.driverContact || 'Not assigned'}</span>
               </div>
               <div style={{ marginBottom: '16px', paddingBottom: '12px', borderBottom: '1px solid #e2e8f0' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>Porter Required</label>
-                <span style={{ fontSize: '14px', color: '#334155' }}>{selectedRow.porter === 'YES' ? 'Yes' : 'No'}</span>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>Porter Required</label>
+                <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '700' }}>{selectedRow.porter === 'YES' ? 'Yes' : 'No'}</span>
               </div>
               <div style={{ marginBottom: '16px' }}>
-                <label style={{ display: 'block', fontSize: '12px', color: '#64748b', marginBottom: '4px' }}>By Hand Quantity</label>
-                <span style={{ fontSize: '14px', color: '#334155' }}>{selectedRow.byHand || '0'}</span>
+                <label style={{ display: 'block', fontSize: '11px', color: '#475569', fontWeight: '800', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '4px' }}>By Hand Quantity</label>
+                <span style={{ fontSize: '14px', color: '#0f172a', fontWeight: '700' }}>{selectedRow.byHand || '0'}</span>
               </div>
             </div>
             <div style={{ padding: '16px 24px', background: '#f8fafc', borderTop: '1px solid #e2e8f0', textAlign: 'right' }}>

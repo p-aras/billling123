@@ -1,7 +1,7 @@
 // services/storageService.js
 
 // Google Apps Script URL - REPLACE WITH YOUR DEPLOYED WEB APP URL
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbyjxBL0ujNRvpUp2NHfwfjRUZS3ryqNks5pFmS9UuSoR8fF87S_W1AnFEwMSmaoz_xk/exec";
+const APPS_SCRIPT_URL = process.env.REACT_APP_BILL_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbyjxBL0ujNRvpUp2NHfwfjRUZS3ryqNks5pFmS9UuSoR8fF87S_W1AnFEwMSmaoz_xk/exec";
 
 class StorageService {
   constructor() {
@@ -15,18 +15,18 @@ class StorageService {
    */
   async saveBill(billData, type = 'final') {
     const saveId = this.generateSaveId();
-    
+
     try {
       // Clear relevant caches before saving
       this.invalidateCache('bills');
       this.invalidateCache(`party_${billData.partyName}`);
-      
+
       // Save with retry logic
       const result = await this.saveWithRetry(billData, type);
-      
+
       // Clear sensitive data from memory
       this.clearTemporaryData(billData);
-      
+
       return result;
     } catch (error) {
       console.error('Save failed:', error);
@@ -42,7 +42,7 @@ class StorageService {
       try {
         const formData = new URLSearchParams();
         formData.append('payload', JSON.stringify(billData));
-        
+
         const response = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: {
@@ -53,17 +53,17 @@ class StorageService {
           cache: 'no-store',
           credentials: 'same-origin'
         });
-        
+
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
           return result;
         }
-        
+
         throw new Error(result.error || 'Save failed');
-        
+
       } catch (error) {
         if (i === retries - 1) throw error;
         await this.sleep(1000 * Math.pow(2, i)); // Exponential backoff
@@ -79,7 +79,7 @@ class StorageService {
       try {
         const encodedData = encodeURIComponent(JSON.stringify(draftData));
         const urlEncodedData = `data=${encodedData}&type=draft`;
-        
+
         const response = await fetch(APPS_SCRIPT_URL, {
           method: 'POST',
           headers: {
@@ -89,17 +89,17 @@ class StorageService {
           cache: 'no-store',
           credentials: 'same-origin'
         });
-        
+
         if (!response.ok) throw new Error(`HTTP ${response.status}`);
-        
+
         const result = await response.json();
-        
+
         if (result.success) {
           return result;
         }
-        
+
         throw new Error(result.error || 'Save failed');
-        
+
       } catch (error) {
         if (i === retries - 1) throw error;
         await this.sleep(1000 * Math.pow(2, i));
@@ -115,7 +115,7 @@ class StorageService {
       const oldestKey = this.cache.keys().next().value;
       this.cache.delete(oldestKey);
     }
-    
+
     this.cache.set(key, {
       data,
       timestamp: Date.now()

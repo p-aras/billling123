@@ -21,9 +21,9 @@ function Home() {
     totalGatepasses: 0,
     totalManualStickers: 0
   });
-  
+
   const [toastMessage, setToastMessage] = useState(null);
-  
+
   // Refs to prevent multiple renders
   const isInitialized = useRef(false);
   const loadTimeoutRef = useRef(null);
@@ -143,15 +143,15 @@ function Home() {
       const savedGatepasses = JSON.parse(localStorage.getItem("gatepasses") || "[]");
       const savedManualStickers = JSON.parse(localStorage.getItem("manualStickers") || "[]");
       const today = new Date().toDateString();
-      
+
       const completedToday = savedDispatches.filter(
         d => d.status === "completed" && new Date(d.completedDate).toDateString() === today
       ).length;
-      
+
       const onTimeDeliveries = savedDispatches.filter(d => d.status === "completed" && d.onTime).length;
       const totalCompleted = savedDispatches.filter(d => d.status === "completed").length;
       const onTimeRate = totalCompleted > 0 ? (onTimeDeliveries / totalCompleted * 100).toFixed(1) : 0;
-      
+
       setDispatchStats({
         totalDispatches: savedDispatches.length,
         activeDispatches: savedDispatches.filter(d => d.status === "active").length,
@@ -182,14 +182,14 @@ function Home() {
     if (loadTimeoutRef.current) {
       clearTimeout(loadTimeoutRef.current);
     }
-    
+
     localStorage.removeItem("isAuthenticated");
     localStorage.removeItem("userData");
-    
+
     window.dispatchEvent(new Event('authChange'));
     setUser(null);
     showToast("Logged out successfully", 'info');
-    
+
     setTimeout(() => {
       navigate("/login", { replace: true });
     }, 500);
@@ -203,13 +203,13 @@ function Home() {
   const getNavigationCards = useCallback(() => {
     const role = user?.role || user?.position || '';
     const normalizedRole = role.toLowerCase().trim();
-    
+
     if (normalizedRole === 'administrator' || normalizedRole === 'administrative') {
       return [...staticBaseCards, adminManagerCard, teamMemberCard, adminOnlyCard];
-    } 
+    }
     else if (normalizedRole === 'manager') {
       return [...staticBaseCards, adminManagerCard];
-    } 
+    }
     else {
       // Team Member or any other role
       return [...staticBaseCards, teamMemberCard];
@@ -219,15 +219,15 @@ function Home() {
   // Effect for authentication - runs only once
   useEffect(() => {
     if (isInitialized.current) return;
-    
+
     const authenticated = localStorage.getItem("isAuthenticated");
     const userData = localStorage.getItem("userData");
-    
+
     if (authenticated === "true" && userData) {
       try {
         const parsedUser = JSON.parse(userData);
         setUser(parsedUser);
-        
+
         // Load data once
         loadDashboardData();
         isInitialized.current = true;
@@ -238,12 +238,12 @@ function Home() {
     } else if (authenticated !== "true") {
       navigate('/login', { replace: true });
     }
-    
+
     const splashShown = sessionStorage.getItem("splashShown");
     if (splashShown) {
       setShowSplash(false);
     }
-    
+
     return () => {
       if (loadTimeoutRef.current) {
         clearTimeout(loadTimeoutRef.current);
@@ -273,7 +273,7 @@ function Home() {
         }
       }
     };
-    
+
     window.addEventListener('authChange', handleAuthChange);
     return () => window.removeEventListener('authChange', handleAuthChange);
   }, [loadDashboardData]);
@@ -305,19 +305,30 @@ function Home() {
       )}
 
       <div className="dashboard-white">
+        {/* Sleek Light Theme Header */}
         <div className="header-white">
           <div className="header-content">
             <div className="header-left">
-              <h1 className="title-white">
-                <span className="title-gradient">DISPATCH MANAGEMENT SYSTEM</span>
-              </h1>
-              <p className="subtitle-white">
-                Enterprise Logistics Management System
-              </p>
+              <div className="brand-group">
+                <span className="brand-logo">💼</span>
+                <h1 className="title-white">
+                  <span className="title-gradient">DISPATCH MANAGEMENT CENTER</span>
+                </h1>
+              </div>
+              <div className="system-status-indicator">
+                <span className="status-dot"></span>
+                <span className="status-text">Logistics Link: Online</span>
+              </div>
             </div>
             <div className="header-right">
               <div className="user-info-card">
-                <div className="user-avatar">
+                <div className="user-avatar" style={{
+                  background: isAdminRole
+                    ? 'linear-gradient(135deg, #f59e0b, #d97706)'
+                    : isManagerRole
+                      ? 'linear-gradient(135deg, #3b82f6, #2563eb)'
+                      : 'linear-gradient(135deg, #10b981, #059669)'
+                }}>
                   <span className="user-icon">
                     {isAdminRole ? '👑' : isManagerRole ? '📊' : '👤'}
                   </span>
@@ -325,7 +336,7 @@ function Home() {
                 <div className="user-details">
                   <span className="user-name">{user?.fullName || user?.username || 'User'}</span>
                   <span className="user-role" style={{
-                    color: isAdminRole ? '#8B5CF6' : isManagerRole ? '#3B82F6' : '#10B981'
+                    color: isAdminRole ? '#d97706' : isManagerRole ? '#2563eb' : '#059669'
                   }}>
                     {userRole}
                   </span>
@@ -339,53 +350,101 @@ function Home() {
           </div>
         </div>
 
+        {/* Dashboard Statistics Overview */}
+        <div className="stats-container-white">
+          <div className="stat-overview-card" style={{ '--accent-color': '#f59e0b' }}>
+            <div className="stat-card-icon-wrapper" style={{ background: 'rgba(245, 158, 11, 0.08)', color: '#d97706' }}>🚚</div>
+            <div className="stat-card-info">
+              <div className="stat-card-label">Active Dispatches</div>
+              <div className="stat-card-value">
+                {dispatchStats.activeDispatches} <span className="stat-card-total">/ {dispatchStats.totalDispatches} total</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="stat-overview-card" style={{ '--accent-color': '#10b981' }}>
+            <div className="stat-card-icon-wrapper" style={{ background: 'rgba(16, 185, 129, 0.08)', color: '#059669' }}>✓</div>
+            <div className="stat-card-info">
+              <div className="stat-card-label">Today's Operations</div>
+              <div className="stat-card-value">
+                {dispatchStats.completedToday} <span className="stat-card-total">completed</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="stat-overview-card" style={{ '--accent-color': '#3b82f6' }}>
+            <div className="stat-card-icon-wrapper" style={{ background: 'rgba(59, 130, 246, 0.08)', color: '#2563eb' }}>💰</div>
+            <div className="stat-card-info">
+              <div className="stat-card-label">Total Bills & Parties</div>
+              <div className="stat-card-value">
+                {dispatchStats.totalBills} <span className="stat-card-total">({dispatchStats.totalParties} parties)</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="stat-overview-card" style={{ '--accent-color': '#8b5cf6' }}>
+            <div className="stat-card-icon-wrapper" style={{ background: 'rgba(139, 92, 246, 0.08)', color: '#7c3aed' }}>🔒</div>
+            <div className="stat-card-info">
+              <div className="stat-card-label">Security & Labels</div>
+              <div className="stat-card-value">
+                {dispatchStats.totalGatepasses} <span className="stat-card-total">({dispatchStats.totalManualStickers} stickers)</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Modules Grid */}
         <div className="actions-section">
           <div className="actions-grid-enhanced">
             {navigationCards.map((card, index) => (
-              <div 
+              <div
                 key={card.path}
                 className="action-card-enhanced"
                 onClick={() => handleNavigation(card.path)}
-                style={{ 
-                  animationDelay: `${index * 0.05}s`,
-                  borderTopColor: card.color 
+                style={{
+                  animationDelay: `${index * 0.03}s`,
+                  '--card-theme-color': card.color,
+                  '--card-light-color': card.lightColor
                 }}
               >
-                <div className="card-icon-section" style={{ backgroundColor: card.lightColor }}>
-                  <span className="card-icon-enhanced" style={{ color: card.color }}>{card.icon}</span>
+                <div className="card-accent-border" style={{ backgroundColor: card.color }}></div>
+
+                <div className="card-header-section">
+                  <div className="card-icon-container" style={{ backgroundColor: card.lightColor }}>
+                    <span className="card-icon-enhanced" style={{ color: card.color }}>{card.icon}</span>
+                  </div>
+                  <div className="card-title-container">
+                    <h3 className="card-title-enhanced">{card.title}</h3>
+                    <span className="card-stats-badge" style={{ color: '#0f172a', backgroundColor: `${card.color}15`, fontWeight: '700' }}>
+                      {card.stats}
+                    </span>
+                  </div>
+                  <span className="card-launch-arrow" style={{ color: card.color }}>→</span>
                 </div>
-                
-                <div className="card-content-section">
-                  <h3 className="card-title-enhanced">{card.title}</h3>
+
+                <div className="card-body-section">
                   <p className="card-description-enhanced">{card.description}</p>
-                  
-                  <div className="card-badge" style={{ backgroundColor: card.lightColor, color: card.color }}>
-                    {card.stats}
-                  </div>
-                </div>
-                
-                <div className="card-details-section">
-                  <div className="theoretical-insight">
-                    <div className="insight-icon">💡</div>
-                    <div className="insight-content">
-                      <div className="insight-label">Theoretical Insight</div>
-                      <div className="insight-text">{card.theoreticalInfo}</div>
-                    </div>
-                  </div>
-                  
+
+                  {/* Key Features Checklist */}
                   <div className="feature-list">
                     {card.details.split('\n').map((feature, i) => (
                       <div key={i} className="feature-item">
-                        <span className="feature-check">✓</span>
-                        <span className="feature-text">{feature.replace('✓ ', '')}</span>
+                        <span className="feature-check" style={{ color: card.color }}>✓</span>
+                        <span className="feature-text">{feature.replace('✓ ', '').replace('✓', '').trim()}</span>
                       </div>
                     ))}
                   </div>
+
+                  {/* Spacious Insight Box */}
+                  <div className="theoretical-insight">
+                    <span className="insight-icon">💡</span>
+                    <p className="insight-text">{card.theoreticalInfo}</p>
+                  </div>
                 </div>
-                
+
                 <div className="card-footer-enhanced">
                   <button className="launch-button" style={{ backgroundColor: card.color }}>
-                    Launch Module
+                    <span>Launch Module</span>
                     <span className="button-arrow">→</span>
                   </button>
                 </div>

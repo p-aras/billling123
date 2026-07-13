@@ -6,14 +6,14 @@ import autoTable from 'jspdf-autotable';
 
 // HARDCODED GOOGLE SHEETS CREDENTIALS
 const GOOGLE_SHEETS_CONFIG = {
-  apiKey: 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk',
-  sheetId: '1s8cXaMtG2XSxdOu1Ecve5aLI2MQcbMjVsn6Sih4hItk',
+  apiKey: process.env.REACT_APP_GOOGLE_API_KEY || 'AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk',
+  sheetId: process.env.REACT_APP_SPREADSHEET_ID || '1s8cXaMtG2XSxdOu1Ecve5aLI2MQcbMjVsn6Sih4hItk',
   sheetName: 'Bills',
   driverSheetName: 'DRIVER INFO'
 };
 
 // Apps Script Web App URL for sending emails
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxL5iwsTonjFTHTsy1VO0VO-KWTOM9n6eDrfztclMIjb8mPZc2TBsJD1AHcueZOv0LN/exec';
+const APPS_SCRIPT_URL = process.env.REACT_APP_GATEPASS_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxL5iwsTonjFTHTsy1VO0VO-KWTOM9n6eDrfztclMIjb8mPZc2TBsJD1AHcueZOv0LN/exec';
 
 const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) => {
   const [gatepassData, setGatepassData] = useState({
@@ -51,7 +51,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
   const [generatedGatepass, setGeneratedGatepass] = useState(null);
   const [activeTab, setActiveTab] = useState('bills');
   const [sendingEmail, setSendingEmail] = useState(false);
-  
+
   // NEW FILTER STATES
   const [filterParty, setFilterParty] = useState('');
   const [sortOrder, setSortOrder] = useState('desc');
@@ -60,7 +60,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
   // Function to check if any bill has byHandQuantity or byPorter selected
   const hasAnyByHandSelection = () => {
     if (!gatepassData.selectedBills || !Array.isArray(gatepassData.selectedBills)) return false;
-    return gatepassData.selectedBills.some(bill => 
+    return gatepassData.selectedBills.some(bill =>
       bill.additionalDetails?.isByHand === true
     );
   };
@@ -68,7 +68,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
   // Function to check if all bills are by-hand (no vehicle needed)
   const isAllByHand = () => {
     if (!gatepassData.selectedBills || !Array.isArray(gatepassData.selectedBills) || gatepassData.selectedBills.length === 0) return false;
-    return gatepassData.selectedBills.every(bill => 
+    return gatepassData.selectedBills.every(bill =>
       bill.additionalDetails?.isByHand === true
     );
   };
@@ -82,18 +82,18 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
   // Function to extract first name and second name initials from party name
   const getPartyInitials = (partyName) => {
     if (!partyName) return '-';
-    
+
     let cleanedName = partyName.replace(/\([^)]*\)/g, '').trim();
     const words = cleanedName.split(' ').filter(word => word.length > 0);
-    
+
     if (words.length === 0) return '-';
     if (words.length === 1) {
       return words[0].substring(0, 2).toUpperCase();
     }
-    
+
     const firstInitial = words[0].charAt(0).toUpperCase();
     const secondInitial = words[1].charAt(0).toUpperCase();
-    
+
     return `${firstInitial}${secondInitial}`;
   };
 
@@ -109,27 +109,27 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
       const { apiKey, sheetId, sheetName } = GOOGLE_SHEETS_CONFIG;
       const range = `${sheetName}!A:T`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`;
-      
+
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.values && data.values.length > 0) {
         const headers = data.values[0];
         const rows = data.values.slice(1);
-        
+
         const parsedBills = rows.map(row => {
           const billData = {};
           headers.forEach((header, index) => {
             billData[header] = row[index] || '';
           });
-          
+
           billData['Party Initials'] = getPartyInitials(billData['Party Name']);
-          
+
           if (billData['Bill Data (JSON)']) {
             try {
               const parsedJson = JSON.parse(billData['Bill Data (JSON)']);
@@ -138,31 +138,31 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
               console.error('Error parsing bill JSON:', e);
             }
           }
-          
+
           return billData;
         });
-        
+
         const availableBills = parsedBills.filter(bill => {
-          const gatepassStatus = 
-            bill['GATEPASS CREATED'] || 
-            bill['Gatepass Created'] || 
+          const gatepassStatus =
+            bill['GATEPASS CREATED'] ||
+            bill['Gatepass Created'] ||
             bill['gatepass created'] ||
             bill['GATEPASS_CREATED'] ||
             bill['Gatepass_Created'] ||
             '';
-          
+
           const normalizedStatus = gatepassStatus.toString().trim().toUpperCase();
           return normalizedStatus !== 'YES';
         });
-        
+
         const sortedBills = sortBills(availableBills, sortOrder);
         setBills(sortedBills || []);
-        
+
         const uniqueParties = [...new Set((availableBills || []).map(bill => bill['Party Name']).filter(name => name))];
         setUniquePartiesList(uniqueParties);
-        
+
         console.log('Available bills fetched:', availableBills ? availableBills.length : 0);
-        
+
         if (availableBills && availableBills.length === 0) {
           alert('All bills have already been assigned to gatepasses. No available bills found.');
         }
@@ -182,7 +182,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
     return [...billsArray].sort((a, b) => {
       const billNumA = a['Bill Number'] || '';
       const billNumB = b['Bill Number'] || '';
-      
+
       if (order === 'desc') {
         return billNumB.localeCompare(billNumA, undefined, { numeric: true });
       } else {
@@ -193,20 +193,20 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
   const applyFilters = (billsToFilter) => {
     if (!billsToFilter || !Array.isArray(billsToFilter)) return [];
-    
+
     let filtered = [...billsToFilter];
-    
+
     if (filterParty) {
       filtered = filtered.filter(bill => bill['Party Name'] === filterParty);
     }
-    
+
     if (searchTerm) {
-      filtered = filtered.filter(bill => 
+      filtered = filtered.filter(bill =>
         bill['Bill Number']?.toLowerCase().includes(searchTerm.toLowerCase()) ||
         bill['Party Name']?.toLowerCase().includes(searchTerm.toLowerCase())
       );
     }
-    
+
     return sortBills(filtered, sortOrder);
   };
 
@@ -222,15 +222,15 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
       const { apiKey, sheetId, driverSheetName } = GOOGLE_SHEETS_CONFIG;
       const range = `${driverSheetName}!A:C`;
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/${range}?key=${apiKey}`;
-      
+
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`HTTP error! status: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (data.values && data.values.length > 0) {
         const rows = data.values.slice(1);
         const parsedDrivers = rows.map(row => ({
@@ -238,7 +238,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
           vehicleNumber: row[1] || '',
           mobileNumber: row[2] || ''
         })).filter(driver => driver.driverName);
-        
+
         setDrivers(parsedDrivers);
       } else {
         setDrivers([]);
@@ -269,7 +269,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
   const handleDriverSelect = (driverName) => {
     const selectedDriver = drivers.find(driver => driver.driverName === driverName);
-    
+
     if (selectedDriver) {
       setGatepassData(prev => ({
         ...prev,
@@ -290,9 +290,9 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
   const updateBillsWithGatepassInfo = async (selectedBills, gatepassNumber) => {
     try {
       const billNumbers = selectedBills.map(bill => bill['Bill Number']);
-      
-      const scriptURL = 'https://script.google.com/macros/s/AKfycbxL5iwsTonjFTHTsy1VO0VO-KWTOM9n6eDrfztclMIjb8mPZc2TBsJD1AHcueZOv0LN/exec';
-      
+
+      const scriptURL = APPS_SCRIPT_URL;
+
       const gatepassDataToSend = {
         selectedBills: selectedBills.map(bill => ({
           'Bill Number': bill['Bill Number'],
@@ -307,19 +307,19 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
         totalBora: gatepassData.totalBora,
         totalPolybags: gatepassData.totalPolybags
       };
-      
+
       const updateData = {
         action: 'updateGatepass',
         billNumbers: billNumbers,
         gatepassNumber: gatepassNumber,
         gatepassData: gatepassDataToSend
       };
-      
+
       console.log('Sending update to Google Sheets:', updateData);
-      
+
       const encodedData = encodeURIComponent(JSON.stringify(updateData));
       const urlEncodedBody = `data=${encodedData}&type=final`;
-      
+
       const response = await fetch(scriptURL, {
         method: 'POST',
         mode: 'no-cors',
@@ -328,11 +328,11 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
         },
         body: urlEncodedBody
       });
-      
+
       console.log('Update request sent via URL-encoded method');
-      
+
       return true;
-      
+
     } catch (error) {
       console.error('Error updating bills:', error);
       alert(`Failed to update bills: ${error.message}`);
@@ -343,7 +343,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
   // NEW FUNCTION: Send Gatepass Email
   const sendGatepassEmail = async (gatepassInfo, pdfBlob) => {
     setSendingEmail(true);
-    
+
     try {
       // Convert PDF blob to base64 for sending
       const reader = new FileReader();
@@ -352,7 +352,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
         reader.onerror = reject;
         reader.readAsDataURL(pdfBlob);
       });
-      
+
       // Prepare email data
       const emailData = {
         action: 'sendGatepassEmail',
@@ -387,7 +387,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
         pdfBase64: pdfBase64,
         pdfFileName: `Gatepass_${gatepassInfo.gatepassNumber}.pdf`
       };
-      
+
       // Send email via Apps Script
       const response = await fetch(APPS_SCRIPT_URL, {
         method: 'POST',
@@ -397,10 +397,10 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
         },
         body: `payload=${encodeURIComponent(JSON.stringify(emailData))}`
       });
-      
+
       console.log('Email send request sent');
       return true;
-      
+
     } catch (error) {
       console.error('Error sending email:', error);
       // Don't show alert to user - email is just a notification
@@ -414,7 +414,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
     if (!selectedBills || !Array.isArray(selectedBills)) {
       return { totalPetti: 0, totalBora: 0, totalPolybags: 0 };
     }
-    
+
     const totals = {
       totalPetti: 0,
       totalBora: 0,
@@ -425,7 +425,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
       const petti = parseFloat(bill.additionalDetails?.totalPetti) || 0;
       const bora = parseFloat(bill.additionalDetails?.totalBora) || 0;
       const polybags = parseFloat(bill.additionalDetails?.totalPolybags) || 0;
-      
+
       totals.totalPetti += petti;
       totals.totalBora += bora;
       totals.totalPolybags += polybags;
@@ -437,7 +437,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
   // Handle bill details modal input changes
   const handleBillDetailsChange = (e) => {
     const { name, value, type, checked } = e.target;
-    
+
     if (name === 'isByHand') {
       if (!checked) {
         setBillDetails(prev => ({
@@ -467,34 +467,34 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
       alert(`Bill ${bill['Bill Number']} is already selected`);
       return;
     }
-    
+
     let totalQuantity = 0;
-    
+
     if (bill.parsedBillData) {
       if (bill.parsedBillData.totalQuantity) {
         totalQuantity = bill.parsedBillData.totalQuantity;
       } else if (bill.parsedBillData.items && Array.isArray(bill.parsedBillData.items)) {
-        totalQuantity = bill.parsedBillData.items.reduce((sum, item) => 
+        totalQuantity = bill.parsedBillData.items.reduce((sum, item) =>
           sum + (parseInt(item.quantity) || 0), 0);
       }
-    } 
+    }
     else if (bill['Bill Data (JSON)']) {
       try {
-        const parsedData = typeof bill['Bill Data (JSON)'] === 'string' 
-          ? JSON.parse(bill['Bill Data (JSON)']) 
+        const parsedData = typeof bill['Bill Data (JSON)'] === 'string'
+          ? JSON.parse(bill['Bill Data (JSON)'])
           : bill['Bill Data (JSON)'];
-        
+
         if (parsedData.totalQuantity) {
           totalQuantity = parsedData.totalQuantity;
         } else if (parsedData.items && Array.isArray(parsedData.items)) {
-          totalQuantity = parsedData.items.reduce((sum, item) => 
+          totalQuantity = parsedData.items.reduce((sum, item) =>
             sum + (parseInt(item.quantity) || 0), 0);
         }
       } catch (e) {
         console.error('Error parsing bill JSON:', e);
       }
     }
-    
+
     setBillDetails({
       totalPetti: 0,
       totalBora: 0,
@@ -504,19 +504,19 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
       byHandPersonName: '',
       byPorter: false
     });
-    
+
     let enhancedBill = { ...bill };
     if (!enhancedBill.parsedBillData && enhancedBill['Bill Data (JSON)']) {
       try {
-        const parsedData = typeof enhancedBill['Bill Data (JSON)'] === 'string' 
-          ? JSON.parse(enhancedBill['Bill Data (JSON)']) 
+        const parsedData = typeof enhancedBill['Bill Data (JSON)'] === 'string'
+          ? JSON.parse(enhancedBill['Bill Data (JSON)'])
           : enhancedBill['Bill Data (JSON)'];
         enhancedBill.parsedBillData = parsedData;
       } catch (e) {
         console.error('Error parsing bill JSON:', e);
       }
     }
-    
+
     setCurrentSelectedBill(enhancedBill);
     setShowBillDetailsModal(true);
   };
@@ -549,8 +549,8 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
       parsedBillData: currentSelectedBill.parsedBillData || (() => {
         try {
           if (currentSelectedBill['Bill Data (JSON)']) {
-            return typeof currentSelectedBill['Bill Data (JSON)'] === 'string' 
-              ? JSON.parse(currentSelectedBill['Bill Data (JSON)']) 
+            return typeof currentSelectedBill['Bill Data (JSON)'] === 'string'
+              ? JSON.parse(currentSelectedBill['Bill Data (JSON)'])
               : currentSelectedBill['Bill Data (JSON)'];
           }
         } catch (e) {
@@ -561,9 +561,9 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
     };
 
     const updatedSelectedBills = [...gatepassData.selectedBills, enhancedBill];
-    
+
     const calculatedTotals = calculateTotalsFromBills(updatedSelectedBills);
-    
+
     setGatepassData(prev => ({
       ...prev,
       selectedBills: updatedSelectedBills,
@@ -584,9 +584,9 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
     const updatedSelectedBills = gatepassData.selectedBills.filter(
       bill => bill['Bill Number'] !== billToRemove['Bill Number']
     );
-    
+
     const calculatedTotals = calculateTotalsFromBills(updatedSelectedBills);
-    
+
     setGatepassData(prev => ({
       ...prev,
       selectedBills: updatedSelectedBills,
@@ -616,7 +616,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
   const getUniquePartyInitials = () => {
     if (!gatepassData.selectedBills || !Array.isArray(gatepassData.selectedBills)) return [];
-    const initials = gatepassData.selectedBills.map(bill => 
+    const initials = gatepassData.selectedBills.map(bill =>
       getPartyInitials(bill['Party Name'])
     );
     return [...new Set(initials)];
@@ -638,10 +638,10 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
     doc.text("DISPATCH GATE PASS", pageWidth / 2, y, { align: "center" });
 
     y += 5;
-    
+
     doc.setLineWidth(0.3);
     doc.line(10, y, pageWidth - 10, y);
-    
+
     y += 8;
 
     doc.setFontSize(10);
@@ -649,16 +649,16 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
     const currentDateTime = new Date();
     const formattedDateTime = `${currentDateTime.toLocaleDateString()} ${currentDateTime.toLocaleTimeString()}`;
-    
+
     doc.text(`Gatepass No: ${gatepassInfo.gatepassNumber || "-"}`, 15, y);
     doc.text(`Date & Time: ${formattedDateTime}`, pageWidth - 75, y);
 
     y += 6;
-    
+
     doc.setFontSize(9);
     doc.setFont("times", "normal");
     doc.text("Petti | Bora | Polybags", 15, y);
-    
+
     y += 6;
 
     const isByHandOnly = gatepassInfo.isByHandOnly || false;
@@ -670,7 +670,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
     doc.setFont("times", "normal");
     doc.setFontSize(9);
-    
+
     if (isByHandOnly) {
       const byHandBills = gatepassInfo.selectedBills.filter(
         bill => bill.additionalDetails?.isByHand === true
@@ -714,17 +714,17 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
       doc.text("Vehicle No:", 15, y + 14);
       doc.setFont("times", "bold");
       doc.text(`${gatepassInfo.vehicleNumber || "-"}`, 60, y + 14);
-      
+
       doc.setFont("times", "normal");
       doc.text("Driver Name:", 15, y + 20);
       doc.setFont("times", "bold");
       doc.text(`${gatepassInfo.driverName || "-"}`, 60, y + 20);
-      
+
       doc.setFont("times", "normal");
       doc.text("Driver Contact:", 15, y + 26);
       doc.setFont("times", "bold");
       doc.text(`${gatepassInfo.driverContact || "-"}`, 60, y + 26);
-      
+
       doc.setFont("times", "normal");
       doc.text("Purpose:", 15, y + 32);
       doc.setFont("times", "bold");
@@ -739,18 +739,18 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
     const totalPetti = gatepassInfo.selectedBills.reduce((sum, bill) => sum + (bill.additionalDetails?.totalPetti || 0), 0);
     const totalBora = gatepassInfo.selectedBills.reduce((sum, bill) => sum + (bill.additionalDetails?.totalBora || 0), 0);
     const totalPolybags = gatepassInfo.selectedBills.reduce((sum, bill) => sum + (bill.additionalDetails?.totalPolybags || 0), 0);
-    
+
     doc.setFont("times", "normal");
     doc.setFontSize(9);
     doc.text("Total Petti:", 120, y + 16);
     doc.setFont("times", "bold");
     doc.text(`${totalPetti}`, 175, y + 16);
-    
+
     doc.setFont("times", "normal");
     doc.text("Total Bora:", 120, y + 22);
     doc.setFont("times", "bold");
     doc.text(`${totalBora}`, 175, y + 22);
-    
+
     doc.setFont("times", "normal");
     doc.text("Total Polybags:", 120, y + 28);
     doc.setFont("times", "bold");
@@ -766,7 +766,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
     const tableStartX = 10;
     const tableWidth = 190;
-    
+
     const colPositions = {
       serial: 15,
       billNo: 40,
@@ -780,7 +780,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
     doc.rect(tableStartX, y, tableWidth, 12, 'F');
     doc.setFont("times", "bold");
     doc.setFontSize(10);
-    
+
     doc.text("#", colPositions.serial, y + 8);
     doc.text("Bill No.", colPositions.billNo, y + 8);
     doc.text("Bill Date", colPositions.billDate, y + 8);
@@ -793,7 +793,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
     doc.setFont("times", "normal");
     doc.setFontSize(9);
     const rowHeight = 10;
-    
+
     const getTotalQuantity = (bill) => {
       if (bill.parsedBillData) {
         if (bill.parsedBillData.totalQuantity) {
@@ -806,13 +806,13 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
           if (sum > 0) return sum;
         }
       }
-      
+
       if (bill['Bill Data (JSON)']) {
         try {
-          const parsedData = typeof bill['Bill Data (JSON)'] === 'string' 
-            ? JSON.parse(bill['Bill Data (JSON)']) 
+          const parsedData = typeof bill['Bill Data (JSON)'] === 'string'
+            ? JSON.parse(bill['Bill Data (JSON)'])
             : bill['Bill Data (JSON)'];
-          
+
           if (parsedData.totalQuantity) {
             return parsedData.totalQuantity;
           }
@@ -826,20 +826,20 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
           console.error('Error parsing bill JSON for quantity:', e);
         }
       }
-      
+
       if (bill['Total Quantity']) {
         return bill['Total Quantity'];
       }
-      
+
       return 0;
     };
-    
+
     if (gatepassInfo.selectedBills && Array.isArray(gatepassInfo.selectedBills)) {
       gatepassInfo.selectedBills.forEach((bill, index) => {
         if (y + rowHeight > pageHeight - 50) {
           doc.addPage();
           y = 20;
-          
+
           doc.setFillColor(200, 200, 200);
           doc.rect(tableStartX, y, tableWidth, 12, 'F');
           doc.setFont("times", "bold");
@@ -854,47 +854,47 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
           doc.setFont("times", "normal");
           doc.setFontSize(9);
         }
-        
+
         doc.rect(tableStartX, y, tableWidth, rowHeight);
-        
+
         const partyInitials = bill['Party Initials'] || getPartyInitials(bill['Party Name']);
-        
+
         const billDate = bill["Bill Date"] || "-";
         const formattedBillDate = billDate.split('T')[0];
-        
+
         const totalQuantity = getTotalQuantity(bill);
-        
+
         const petti = bill.additionalDetails?.totalPetti || 0;
         const bora = bill.additionalDetails?.totalBora || 0;
         const polybags = bill.additionalDetails?.totalPolybags || 0;
-        
+
         let packingText = "";
         const packingParts = [];
         if (petti > 0) packingParts.push(`${petti} Petti`);
         if (bora > 0) packingParts.push(`${bora} Bora`);
         if (polybags > 0) packingParts.push(`${polybags} Polybags`);
         packingText = packingParts.join(" | ");
-        
+
         if (packingText.length > 30) {
           packingText = packingText.substring(0, 27) + "...";
         }
-        
+
         const textY = y + 7;
-        
+
         doc.text(String(index + 1), colPositions.serial, textY);
         doc.text(bill["Bill Number"] || "-", colPositions.billNo, textY);
         doc.text(formattedBillDate, colPositions.billDate, textY);
         doc.text(String(totalQuantity), colPositions.totalQty, textY);
         doc.text(partyInitials, colPositions.partyInitials, textY);
         doc.text(packingText || "0", colPositions.packing, textY);
-        
+
         y += rowHeight;
       });
     }
 
     const tableEndY = y;
     const tableStartY = y - ((gatepassInfo.selectedBills && gatepassInfo.selectedBills.length) || 0) * rowHeight;
-    
+
     doc.line(colPositions.serial - 5, tableStartY, colPositions.serial - 5, tableEndY);
     doc.line(colPositions.billNo - 5, tableStartY, colPositions.billNo - 5, tableEndY);
     doc.line(colPositions.billDate - 5, tableStartY, colPositions.billDate - 5, tableEndY);
@@ -915,27 +915,27 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
         if (bill.additionalDetails && bill.additionalDetails.isByHand) {
           const details = bill.additionalDetails;
           const hasDetails = details.byHandQuantity > 0 || details.byPorter;
-          
+
           if (hasDetails) {
             if (y + 30 > pageHeight - 30) {
               doc.addPage();
               y = 20;
             }
-            
+
             doc.setFont("times", "bold");
             doc.setFontSize(10);
             doc.text(`Bill ${bill['Bill Number']}:`, 10, y);
             y += 5;
-            
+
             doc.setFont("times", "normal");
             doc.setFontSize(9);
-            
+
             let detailsText = [];
             if (details.byHandQuantity > 0) {
               detailsText.push(`By Hand Quantity: ${details.byHandQuantity}${details.byHandPersonName ? ` (Person: ${details.byHandPersonName})` : ''}`);
             }
             if (details.byPorter) detailsText.push(`Porter Required: Yes`);
-            
+
             if (detailsText.length > 0) {
               const detailsString = detailsText.join(" | ");
               const wrappedDetails = doc.splitTextToSize(detailsString, 180);
@@ -951,19 +951,19 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
     doc.setFont("times", "bold");
     doc.setFontSize(11);
-    
+
     doc.text(`Total Bills: ${gatepassInfo.selectedBills ? gatepassInfo.selectedBills.length : 0}`, 10, y);
     y += 7;
-    
+
     const uniquePartyInitials = getUniquePartyInitials();
     const uniquePartyCount = uniquePartyInitials.length;
-    
+
     doc.text(`Total Unique Parties: ${uniquePartyCount}`, 10, y);
     y += 7;
-    
+
     const totalOverallQuantity = gatepassInfo.selectedBills.reduce((sum, bill) => {
       let qty = 0;
-      
+
       if (bill.parsedBillData) {
         if (bill.parsedBillData.totalQuantity) {
           qty = bill.parsedBillData.totalQuantity;
@@ -972,13 +972,13 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
             return total + (parseInt(item.quantity) || 0);
           }, 0);
         }
-      } 
+      }
       else if (bill['Bill Data (JSON)']) {
         try {
-          const parsedData = typeof bill['Bill Data (JSON)'] === 'string' 
-            ? JSON.parse(bill['Bill Data (JSON)']) 
+          const parsedData = typeof bill['Bill Data (JSON)'] === 'string'
+            ? JSON.parse(bill['Bill Data (JSON)'])
             : bill['Bill Data (JSON)'];
-          
+
           if (parsedData.totalQuantity) {
             qty = parsedData.totalQuantity;
           } else if (parsedData.items && Array.isArray(parsedData.items)) {
@@ -990,13 +990,13 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
           console.error('Error parsing bill JSON for total quantity:', e);
         }
       }
-      
+
       return sum + qty;
     }, 0);
-    
+
     doc.text(`Total Quantity: ${totalOverallQuantity}`, 10, y);
     y += 7;
-    
+
     if (uniquePartyCount > 0) {
       doc.setFont("times", "normal");
       y += 7;
@@ -1023,7 +1023,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
     doc.setFont("times", "bold");
     doc.setFontSize(10);
-    
+
     doc.line(20, y, 70, y);
     doc.text("Authorized Signature", 45, y + 5, { align: "center" });
 
@@ -1043,14 +1043,14 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    
+
     if (!gatepassData.selectedBills || gatepassData.selectedBills.length === 0) {
       alert('Please select at least one bill for the gatepass');
       return;
     }
-    
+
     const vehicleDetailsRequired = areVehicleDetailsRequired();
-    
+
     if (vehicleDetailsRequired) {
       if (!gatepassData.vehicleNumber || !gatepassData.driverName || !gatepassData.driverContact) {
         alert('Please fill in all vehicle and driver details. Vehicle details are required for non-hand delivery bills.');
@@ -1061,11 +1061,11 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
         return;
       }
     }
-    
+
     const uniqueParties = getUniqueParties();
     const uniquePartyInitials = getUniquePartyInitials();
     const gatepassNumber = `MGP-${Date.now()}`;
-    
+
     const gatepassWithBills = {
       ...gatepassData,
       gatepassNumber: gatepassNumber,
@@ -1077,18 +1077,18 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
       totalBills: gatepassData.selectedBills.length,
       isByHandOnly: isAllByHand()
     };
-    
+
     setGeneratedGatepass(gatepassWithBills);
-    
+
     // Generate PDF
     const pdfBlob = generatePDF(gatepassWithBills);
-    
+
     // Send email with PDF
     const emailSent = await sendGatepassEmail(gatepassWithBills, pdfBlob);
-    
+
     // Update Google Sheet
     const updateSuccess = await updateBillsWithGatepassInfo(gatepassData.selectedBills, gatepassNumber);
-    
+
     // Download PDF
     const pdfUrl = URL.createObjectURL(pdfBlob);
     const downloadLink = document.createElement('a');
@@ -1096,11 +1096,11 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
     downloadLink.download = `Gatepass_${gatepassNumber}.pdf`;
     downloadLink.click();
     URL.revokeObjectURL(pdfUrl);
-    
+
     if (onSubmit) {
       onSubmit(gatepassWithBills);
     }
-    
+
     setTimeout(() => {
       setGeneratedGatepass(null);
       setGatepassData({
@@ -1129,9 +1129,9 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
       {/* Header */}
       <header className="generator-header">
         <div className="header-left">
-         <button className="back-button" onClick={() => window.history.back()}>
-  ← Back
-</button>
+          <button className="back-button" onClick={() => window.history.back()}>
+            ← Back
+          </button>
           <div className="header-info">
             <h1>Dispatch Gatepass</h1>
             <p>Create consolidated gatepass for multiple bills</p>
@@ -1175,11 +1175,11 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
                 Clear All
               </button>
             </div>
-            
+
             <div className="filter-group">
               <label>Party Name</label>
-              <select 
-                value={filterParty} 
+              <select
+                value={filterParty}
                 onChange={(e) => setFilterParty(e.target.value)}
                 className="filter-select"
               >
@@ -1194,8 +1194,8 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
 
             <div className="filter-group">
               <label>Sort Order</label>
-              <select 
-                value={sortOrder} 
+              <select
+                value={sortOrder}
                 onChange={(e) => setSortOrder(e.target.value)}
                 className="filter-select"
               >
@@ -1238,8 +1238,8 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
                   {sortOrder === 'asc' && <span className="sort-indicator">↑ Sorted by Bill Number (Oldest First)</span>}
                 </div>
                 {filteredBills.map((bill, index) => (
-                  <div 
-                    key={index} 
+                  <div
+                    key={index}
                     className={`bill-card ${isBillSelected(bill['Bill Number']) ? 'selected' : ''}`}
                     onClick={() => handleBillSelect(bill)}
                   >
@@ -1252,7 +1252,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
                       </div>
                       <div className="bill-date">📅 {bill['Bill Date']}</div>
                       <div className="bill-party">
-                        {bill['Party Name']} 
+                        {bill['Party Name']}
                         <span className="party-initials">({getPartyInitials(bill['Party Name'])})</span>
                       </div>
                     </div>
@@ -1295,12 +1295,12 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
                       <span className="bill-badge">{bill['Bill Number']}</span>
                       <span className="bill-date">📅 {bill['Bill Date']}</span>
                       <span className="party-name">
-                        {bill['Party Name']} 
+                        {bill['Party Name']}
                         <small>({getPartyInitials(bill['Party Name'])})</small>
                       </span>
                       <div className="packing-details">
-                        📦 Petti: {bill.additionalDetails?.totalPetti || 0} | 
-                        🛍️ Bora: {bill.additionalDetails?.totalBora || 0} | 
+                        📦 Petti: {bill.additionalDetails?.totalPetti || 0} |
+                        🛍️ Bora: {bill.additionalDetails?.totalBora || 0} |
                         🎒 Polybags: {bill.additionalDetails?.totalPolybags || 0}
                       </div>
                       {bill.additionalDetails && bill.additionalDetails.isByHand && (
@@ -1309,7 +1309,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
                             <div className="handling-badge">
                               {bill.additionalDetails.byHandQuantity > 0 && (
                                 <span className="handling-tag by-hand">
-                                  ✋ By Hand: {bill.additionalDetails.byHandQuantity} 
+                                  ✋ By Hand: {bill.additionalDetails.byHandQuantity}
                                   {bill.additionalDetails.byHandPersonName && ` (${bill.additionalDetails.byHandPersonName})`}
                                 </span>
                               )}
@@ -1321,7 +1321,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
                         </div>
                       )}
                     </div>
-                    <button 
+                    <button
                       className="remove-button"
                       onClick={() => handleRemoveBill(bill)}
                     >
@@ -1349,7 +1349,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
               {/* Tabs - Hide vehicle tab if all by-hand */}
               <div className="form-tabs">
                 {!allByHand && (
-                  <button 
+                  <button
                     type="button"
                     className={`tab ${activeTab === 'vehicle' ? 'active' : ''}`}
                     onClick={() => setActiveTab('vehicle')}
@@ -1357,7 +1357,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
                     🚛 Vehicle Details {vehicleDetailsRequired && <span className="required-star">*</span>}
                   </button>
                 )}
-                <button 
+                <button
                   type="button"
                   className={`tab ${activeTab === 'remarks' ? 'active' : ''}`}
                   onClick={() => setActiveTab('remarks')}
@@ -1471,7 +1471,7 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
                             <div key={idx} className="handling-summary-item">
                               <strong>Bill #{bill['Bill Number']}:</strong>
                               {bill.additionalDetails.byHandQuantity > 0 && (
-                                <span> By Hand: {bill.additionalDetails.byHandQuantity} 
+                                <span> By Hand: {bill.additionalDetails.byHandQuantity}
                                   {bill.additionalDetails.byHandPersonName && ` (${bill.additionalDetails.byHandPersonName})`}
                                 </span>
                               )}
@@ -1549,28 +1549,28 @@ const GatepassGenerator = ({ parties = [], gatepasses = [], onSubmit, onBack }) 
                           return currentSelectedBill.parsedBillData.totalQuantity;
                         }
                         if (currentSelectedBill.parsedBillData.items) {
-                          return currentSelectedBill.parsedBillData.items.reduce((sum, item) => 
+                          return currentSelectedBill.parsedBillData.items.reduce((sum, item) =>
                             sum + (parseInt(item.quantity) || 0), 0);
                         }
                       }
                       if (currentSelectedBill['Bill Data (JSON)']) {
                         try {
-                          const parsed = typeof currentSelectedBill['Bill Data (JSON)'] === 'string' 
-                            ? JSON.parse(currentSelectedBill['Bill Data (JSON)']) 
+                          const parsed = typeof currentSelectedBill['Bill Data (JSON)'] === 'string'
+                            ? JSON.parse(currentSelectedBill['Bill Data (JSON)'])
                             : currentSelectedBill['Bill Data (JSON)'];
                           if (parsed.totalQuantity) return parsed.totalQuantity;
                           if (parsed.items) {
-                            return parsed.items.reduce((sum, item) => 
+                            return parsed.items.reduce((sum, item) =>
                               sum + (parseInt(item.quantity) || 0), 0);
                           }
-                        } catch(e) {}
+                        } catch (e) { }
                       }
                       return 0;
                     })()
                   }
                 </div>
               </div>
-              
+
               <div className="form-section">
                 <h4>Packing Details</h4>
                 <div className="form-group">

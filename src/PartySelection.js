@@ -13,13 +13,13 @@ const PartySelection = ({ onSelectParty, onBack }) => {
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [selectedIndex, setSelectedIndex] = useState(-1);
   const [selectedParty, setSelectedParty] = useState(null);
-  
+
   const searchInputRef = useRef(null);
   const suggestionsRef = useRef(null);
 
   // Google Sheets API configuration
-  const GOOGLE_SHEETS_API_KEY = "AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk";
-  const SPREADSHEET_ID = "10l3ECz9OFNle_jcEUyo2V17-_CkwvkH-PhFlYnfS-Rg";
+  const GOOGLE_SHEETS_API_KEY = process.env.REACT_APP_GOOGLE_API_KEY || "AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk";
+  const SPREADSHEET_ID = process.env.REACT_APP_PARTY_SHEET_ID || "10l3ECz9OFNle_jcEUyo2V17-_CkwvkH-PhFlYnfS-Rg";
   const SHEET_NAME = "PartyName";
   const RANGE = `${SHEET_NAME}!A:E`;
 
@@ -28,26 +28,26 @@ const PartySelection = ({ onSelectParty, onBack }) => {
     try {
       setLoading(true);
       setError(null);
-      
+
       const url = `https://sheets.googleapis.com/v4/spreadsheets/${SPREADSHEET_ID}/values/${RANGE}?key=${GOOGLE_SHEETS_API_KEY}`;
-      
+
       const response = await fetch(url);
-      
+
       if (!response.ok) {
         throw new Error(`Failed to fetch data: ${response.status}`);
       }
-      
+
       const data = await response.json();
-      
+
       if (!data.values || data.values.length <= 1) {
         setParties([]);
         setFilteredParties([]);
         return;
       }
-      
+
       const headers = data.values[0];
       const rows = data.values.slice(1);
-      
+
       const partiesList = rows.map((row, index) => ({
         id: index + 1,
         name: row[0] || "Unnamed Party",
@@ -57,16 +57,16 @@ const PartySelection = ({ onSelectParty, onBack }) => {
         address: row[4] || "",
         rowIndex: index + 1
       })).filter(party => party.name !== "Unnamed Party");
-      
+
       setParties(partiesList);
-      
+
       localStorage.setItem("cachedParties", JSON.stringify(partiesList));
       localStorage.setItem("partiesLastFetched", new Date().toISOString());
-      
+
     } catch (err) {
       console.error("Error fetching parties from Google Sheets:", err);
       setError("Failed to load parties from Google Sheets");
-      
+
       const cachedParties = localStorage.getItem("cachedParties");
       if (cachedParties) {
         try {
@@ -91,7 +91,7 @@ const PartySelection = ({ onSelectParty, onBack }) => {
     const intervalId = setInterval(() => {
       fetchPartiesFromSheet();
     }, 5 * 60 * 1000);
-    
+
     return () => clearInterval(intervalId);
   }, []);
 
@@ -107,13 +107,13 @@ const PartySelection = ({ onSelectParty, onBack }) => {
       setShowSuggestions(false);
     } else {
       const term = searchTerm.toLowerCase();
-      const filtered = parties.filter(party => 
+      const filtered = parties.filter(party =>
         party.name.toLowerCase().includes(term) ||
         party.contact?.toLowerCase().includes(term) ||
         party.email?.toLowerCase().includes(term) ||
         party.gst?.toLowerCase().includes(term)
       );
-      
+
       setFilteredParties(filtered);
       setShowSuggestions(true);
       setSelectedIndex(-1);
@@ -127,7 +127,7 @@ const PartySelection = ({ onSelectParty, onBack }) => {
     switch (e.key) {
       case 'ArrowDown':
         e.preventDefault();
-        setSelectedIndex(prev => 
+        setSelectedIndex(prev =>
           prev < filteredParties.length - 1 ? prev + 1 : prev
         );
         break;
@@ -165,12 +165,12 @@ const PartySelection = ({ onSelectParty, onBack }) => {
     if (selectedParty) {
       // Store in localStorage for the billing page to read
       localStorage.setItem('selectedParty', JSON.stringify(selectedParty));
-      
+
       // Call the onSelectParty prop if provided (for backward compatibility)
       if (onSelectParty) {
         onSelectParty(selectedParty);
       }
-      
+
       // Navigate to party bill page
       navigate('/party-bill');
     }
@@ -195,11 +195,11 @@ const PartySelection = ({ onSelectParty, onBack }) => {
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (suggestionsRef.current && !suggestionsRef.current.contains(event.target) &&
-          searchInputRef.current && !searchInputRef.current.contains(event.target)) {
+        searchInputRef.current && !searchInputRef.current.contains(event.target)) {
         setShowSuggestions(false);
       }
     };
-    
+
     document.addEventListener('mousedown', handleClickOutside);
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
@@ -226,17 +226,17 @@ const PartySelection = ({ onSelectParty, onBack }) => {
   return (
     <div className="ps-container">
       <div className="ps-bg-pattern"></div>
-      
+
       <div className="ps-content">
         {/* Header */}
         <div className="ps-header">
           <button onClick={handleBack} className="ps-back-btn">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M15 18l-6-6 6-6"/>
+              <path d="M15 18l-6-6 6-6" />
             </svg>
             Back
           </button>
-          
+
           <div className="ps-header-title">
             <h1>Party Selection</h1>
             <p>Search and select a customer to generate their bill</p>
@@ -244,7 +244,7 @@ const PartySelection = ({ onSelectParty, onBack }) => {
 
           <button onClick={refreshData} className="ps-refresh-btn" title="Refresh from Google Sheets">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/>
+              <path d="M23 4v6h-6M1 20v-6h6M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
             </svg>
           </button>
         </div>
@@ -264,8 +264,8 @@ const PartySelection = ({ onSelectParty, onBack }) => {
             <div className="ps-panel-header">
               <h3>
                 <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <circle cx="11" cy="11" r="8"/>
-                  <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                  <circle cx="11" cy="11" r="8" />
+                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
                 </svg>
                 Suggestions
               </h3>
@@ -273,7 +273,7 @@ const PartySelection = ({ onSelectParty, onBack }) => {
                 <span className="ps-suggestion-count">{filteredParties.length} results</span>
               )}
             </div>
-            
+
             <div className="ps-suggestions-list" ref={suggestionsRef}>
               {showSuggestions && filteredParties.length > 0 ? (
                 filteredParties.map((party, index) => (
@@ -336,12 +336,12 @@ const PartySelection = ({ onSelectParty, onBack }) => {
                 <h3>Search Party</h3>
                 <p>Enter party details below</p>
               </div>
-              
+
               <div className="ps-search-input-wrapper">
                 <div className="ps-search-icon">
                   <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <circle cx="11" cy="11" r="8"/>
-                    <line x1="21" y1="21" x2="16.65" y2="16.65"/>
+                    <circle cx="11" cy="11" r="8" />
+                    <line x1="21" y1="21" x2="16.65" y2="16.65" />
                   </svg>
                 </div>
                 <input
@@ -356,12 +356,12 @@ const PartySelection = ({ onSelectParty, onBack }) => {
                   className="ps-search-input-field"
                 />
                 {searchTerm && (
-                  <button 
+                  <button
                     onClick={() => {
                       setSearchTerm("");
                       setShowSuggestions(false);
                       setSelectedParty(null);
-                    }} 
+                    }}
                     className="ps-clear-search-btn"
                   >
                     ×
@@ -390,37 +390,37 @@ const PartySelection = ({ onSelectParty, onBack }) => {
                   <h3>Selected Party</h3>
                   <div className="ps-status-badge">Ready for billing</div>
                 </div>
-                
+
                 <div className="ps-party-details">
                   <div className="ps-detail-row">
-                    <div className="ps-detail-label">Party Name</div>
+                    <div className="ps-detail-label">👤 Party Name</div>
                     <div className="ps-detail-value">{selectedParty.name}</div>
                   </div>
-                  
+
                   {selectedParty.contact && (
                     <div className="ps-detail-row">
-                      <div className="ps-detail-label">Contact</div>
+                      <div className="ps-detail-label">📞 Contact</div>
                       <div className="ps-detail-value">{selectedParty.contact}</div>
                     </div>
                   )}
-                  
+
                   {selectedParty.email && (
                     <div className="ps-detail-row">
-                      <div className="ps-detail-label">Email</div>
+                      <div className="ps-detail-label">✉️ Email</div>
                       <div className="ps-detail-value">{selectedParty.email}</div>
                     </div>
                   )}
-                  
+
                   {selectedParty.gst && (
                     <div className="ps-detail-row">
-                      <div className="ps-detail-label">GST Number</div>
+                      <div className="ps-detail-label">🏷️ GST Number</div>
                       <div className="ps-detail-value">{selectedParty.gst}</div>
                     </div>
                   )}
-                  
+
                   {selectedParty.address && (
                     <div className="ps-detail-row">
-                      <div className="ps-detail-label">Address</div>
+                      <div className="ps-detail-label">📍 Address</div>
                       <div className="ps-detail-value">{selectedParty.address}</div>
                     </div>
                   )}
@@ -429,22 +429,49 @@ const PartySelection = ({ onSelectParty, onBack }) => {
                 <button onClick={handleConfirmSelection} className="ps-confirm-btn">
                   Continue to Billing
                   <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M5 12h14M12 5l7 7-7 7"/>
+                    <path d="M5 12h14M12 5l7 7-7 7" />
                   </svg>
                 </button>
               </div>
             )}
 
-            {/* Empty State */}
+            {/* Invoicing Guidelines Dashboard (Fills vacant space) */}
             {!selectedParty && !searchTerm && (
-              <div className="ps-empty-state">
-                <div className="ps-empty-state-icon">📋</div>
-                <h4>No party selected</h4>
-                <p>Search and select a party from the left panel to continue</p>
+              <div className="ps-theoretical-card">
+                <div className="ps-theoretical-header">
+                  <span className="ps-theoretical-icon">💡</span>
+                  <h3>Theoretical Invoicing Guidelines</h3>
+                </div>
+                <p className="ps-theoretical-intro">
+                  Unified invoicing acts as primary accounting documentation, verifying transaction values and tax allocations for regulatory audit logging.
+                </p>
+                <div className="ps-guidelines-grid">
+                  <div className="ps-guideline-item">
+                    <div className="ps-guideline-icon">📁</div>
+                    <div className="ps-guideline-content">
+                      <h4>Centralized Client Database</h4>
+                      <p>Unified registers ensure single-point reconciliation across accounts receivable ledger cards, eliminating redundant entry points.</p>
+                    </div>
+                  </div>
+                  <div className="ps-guideline-item">
+                    <div className="ps-guideline-icon">🛡️</div>
+                    <div className="ps-guideline-content">
+                      <h4>GST Allocation Auditing</h4>
+                      <p>Aligning customer billing tags against verified GSTIN records eliminates downstream tax allocation reconciliation mismatches.</p>
+                    </div>
+                  </div>
+                  <div className="ps-guideline-item">
+                    <div className="ps-guideline-icon">📈</div>
+                    <div className="ps-guideline-content">
+                      <h4>Ledger Integrity & Audits</h4>
+                      <p>Every invoice acts as a primary audit trail entry, verifying trade valuations for tax reporting and financial statements compliance.</p>
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
 
-            {/* Search Prompt */}
+            {/* Empty Search Prompt */}
             {!selectedParty && searchTerm && filteredParties.length === 0 && (
               <div className="ps-empty-state">
                 <div className="ps-empty-state-icon">🔍</div>
