@@ -4,8 +4,9 @@ import React, { useState, useEffect, useRef } from "react";
 import "./DraftPackingList.css";
 import jsPDF from 'jspdf';
 
-// Google Apps Script URL
+// Google Apps Script URLs
 const APPS_SCRIPT_URL = process.env.REACT_APP_DRAFT_PACKING_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbyTjq-1ZRF9z5tLgRmsG2KE3yADq1CEHnPlQ6Rf6aYfFWvRbkvbkCnkAE-_WhTfIs2Z/exec";
+const BILL_APPS_SCRIPT_URL = process.env.REACT_APP_BILL_APPS_SCRIPT_URL || "https://script.google.com/macros/s/AKfycbwSOsKfAlKYq-wYGFa4KWnGwryK1T0ViJYigil8pCbZz_xkK3gv0tqtCgB-k54rRVfa/exec";
 
 // Google Sheets configuration
 const GOOGLE_SHEETS_API_KEY = process.env.REACT_APP_GOOGLE_API_KEY || "AIzaSyAomDFBkOySlIxKWSKGHe6ATv9gvaBr7uk";
@@ -377,27 +378,28 @@ function DraftPackingList({ onBack, onConvertToDispatch, parties, currentUser })
         savedAt: new Date().toISOString()
       };
 
-      // Alternative: Send as form-urlencoded but properly encode
-      const jsonString = JSON.stringify(payload);
-      const encodedData = encodeURIComponent(jsonString);
+      const formData = new URLSearchParams();
+      formData.append('payload', JSON.stringify(payload));
 
-      const response = await fetch(APPS_SCRIPT_URL, {
+      const response = await fetch(BILL_APPS_SCRIPT_URL, {
         method: 'POST',
-        mode: 'no-cors',
         headers: {
-          'Content-Type': 'application/x-www-form-urlencoded'
+          'Content-Type': 'application/x-www-form-urlencoded',
         },
-        body: `data=${encodedData}`
+        body: formData.toString()
       });
 
-      addDebugMessage(`Final bill request sent`, 'info');
+      if (!response.ok) {
+        throw new Error(`HTTP ${response.status}: ${response.statusText}`);
+      }
 
-      // Since we can't get response with no-cors, assume success
-      setTimeout(() => {
-        addDebugMessage(`✅ Final bill ${billData.billNumber} saved (assumed)`, 'success');
-      }, 2000);
-
-      return true;
+      const result = await response.json();
+      if (result.success) {
+        addDebugMessage(`✅ Final bill ${billData.billNumber} saved`, 'success');
+        return true;
+      } else {
+        throw new Error(result.error || "App Script returned failure");
+      }
 
     } catch (error) {
       console.error("Error saving final bill:", error);
@@ -882,7 +884,9 @@ function DraftPackingList({ onBack, onConvertToDispatch, parties, currentUser })
         piecesPerSet: piecesPerSet,
         source: product['Source'] || 'Main',
         isOldLot: product['Source'] === 'OLD LOT',
-        rawData: product
+        rawData: product,
+        partNo: product['PART NO.'] || product['Part No.'] || product['Part No'] || product['PART NO'] || product['partNo'] || "",
+        rate: product['RATE'] || product['Rate'] || product['rate'] || ""
       };
     });
 
@@ -902,7 +906,9 @@ function DraftPackingList({ onBack, onConvertToDispatch, parties, currentUser })
       name: suggestion.description,
       description: suggestion.description,
       setsPerPcs: suggestion.piecesPerSet, // Store as number
-      barcode: suggestion.lotNumber
+      barcode: suggestion.lotNumber,
+      partNo: suggestion.partNo || "",
+      rate: suggestion.rate || ""
     };
 
     const totalPieces = calculateTotalPieces(updatedItems[itemIndex]);
@@ -965,6 +971,8 @@ function DraftPackingList({ onBack, onConvertToDispatch, parties, currentUser })
       const piecesPerSet = parseInt(foundProduct['Pieces Per Set']) || 0;
       const brand = foundProduct['Brand'] || foundProduct['Party Name'] || "";
       const itemName = foundProduct['Garment Type'] || foundProduct['Item Name'] || "";
+      const partNo = foundProduct['PART NO.'] || foundProduct['Part No.'] || foundProduct['Part No'] || foundProduct['PART NO'] || foundProduct['partNo'] || "";
+      const rate = foundProduct['RATE'] || foundProduct['Rate'] || foundProduct['rate'] || "";
 
       const updatedItems = [...draftForm.items];
       updatedItems[index] = {
@@ -973,7 +981,9 @@ function DraftPackingList({ onBack, onConvertToDispatch, parties, currentUser })
         name: itemName,
         description: itemName,
         setsPerPcs: piecesPerSet, // Store as number
-        barcode: foundProduct['Barcode ID'] || `LOT-${lotNumber}`
+        barcode: foundProduct['Barcode ID'] || `LOT-${lotNumber}`,
+        partNo: partNo,
+        rate: rate
       };
 
       const totalPieces = calculateTotalPieces(updatedItems[index]);
@@ -1008,7 +1018,9 @@ function DraftPackingList({ onBack, onConvertToDispatch, parties, currentUser })
         loosePcs: "",
         brand: "",
         lotNumber: "",
-        barcode: ""
+        barcode: "",
+        partNo: "",
+        rate: ""
       }]
     });
     setLotSearchTerm("");
@@ -1179,7 +1191,9 @@ function DraftPackingList({ onBack, onConvertToDispatch, parties, currentUser })
           looseOperation: "add",
           quantity: parseInt(item.quantity) || 0,
           colors: [],
-          sizes: []
+          sizes: [],
+          partNo: item.partNo || "",
+          rate: item.rate || ""
         })),
         notes: draftToConvert.notes,
         deliveryAddress: draftToConvert.deliveryAddress,
